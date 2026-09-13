@@ -7,6 +7,12 @@
 - `dev` 會觸發持續部署（Continuous Deployment）。
 - 請先將改動推送至個人分支，再透過 Pull Request 合併至 `dev`。
 
+## 部署
+
+`dev` 分支的前端變更由 Cloud Build 執行品質檢查、Vite build 與 Firebase Hosting deploy。正式網站使用 `/api` 呼叫後端；Firebase Hosting 會將該路徑轉送到 Cloud Run。
+
+部署設定與 Console 操作方式見 [前端雲端架構](docs/cloud-architecture.md)。不要從本機執行 `firebase deploy`，也不要建立或提交 Firebase token 或服務帳號 JSON key。
+
 ## 開發環境
 
 - Node.js 24（使用 nvm 時執行 `nvm install`、`nvm use`）
