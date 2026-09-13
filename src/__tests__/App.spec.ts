@@ -12,7 +12,7 @@ describe('Application routing', () => {
 
     const wrapper = mount(App, { global: { plugins: [router] } })
     expect(router.currentRoute.value.path).toBe('/')
-    expect(wrapper.find('h1').text()).toBe('前端環境已就緒')
+    expect(wrapper.find('h1').text()).toBe('👋 Hi Welcome to EchoTrail!')
     wrapper.unmount()
   })
 })

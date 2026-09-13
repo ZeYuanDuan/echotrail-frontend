@@ -122,3 +122,6 @@
     @apply font-sans;
   }
 }
+
+@import './prototype.css';
+@import './echo.css';

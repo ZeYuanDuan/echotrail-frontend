@@ -44,4 +44,21 @@ npm run preview     # 預覽打包結果
 - shadcn-vue 元件放在 `src/components/ui`，用 `npx shadcn-vue@latest add <元件名稱>` 按需加入。
 - 部署 Vue Router history 模式時，主機需將前端路徑 fallback 到 `index.html`；API 路徑應另行處理。
 
-目前為環境骨架，產品假資料流程及 LLM API 連線尚未實作。
+## 假資料流程
+
+目前可直接以 `npm run dev` 展示完整前端流程，無須啟動後端或設定 API 金鑰。
+
+1. 首頁輸入訊息，或點日記／履歷／隨心聊聊卡片帶入示範文字。
+2. 送出後取得簡易 mock 回覆，可持續對話；Enter 送出、Shift + Enter 換行。
+3. 點 `Generate Insight` 產生 Echo Card，再點「更新至 Dashboard」。
+4. Dashboard 預設顯示 V1 的硬／軟實力、RIASEC 與溝通風格；右上角可展開 V2 假資料（Persona、共鳴之錨、排行榜與職涯錨定）。完整範圍見 [Dashboard 規格](docs/specs/dashboard.md)。
+5. My Trail 預設顯示事件 6 詳情；右上角獨立的 V2 按鈕可展開季度摘要、事件切換與重新討論。完整範圍見 [My Trail 規格](docs/specs/my-trail.md)。
+6. 「＋ New」開始新對話；「重設示範資料」確認後恢復初始六筆事件。
+
+資料存於瀏覽器 localStorage（`echotrail-demo-v1`），重新整理會保留；儲存不可用時仍可在當次頁面操作。
+歷史事件、分析分數與 Echo Card 分析使用 PM prototype 的固定示範資料，新卡片日期固定為 2026 年 7 月 20 日（Q3）。事件描述與引證原話使用實際輸入。重新討論會更新原事件，不新增重複事件。
+履歷與隨心聊聊入口僅帶入示範文字，沒有檔案解析、真實 AI 或後端請求。
+
+- `src/mocks/echo.ts`：歷史事件、示範輸入與 mock 回覆。
+- `src/composables/useEcho.ts`：對話、產生／儲存卡片、本機持久化與重設。
+- `/`、`/trail`、`/dashboard`：聊天、職涯軌跡、分析儀表板。
