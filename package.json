@@ -14,7 +14,7 @@
     "format": "prettier --write src/",
     "lint:fix": "eslint . --fix",
     "format:check": "prettier --check src/",
-    "test": "vitest run"
+    "test": "NODE_OPTIONS=--no-experimental-webstorage vitest run"
   },
   "dependencies": {
     "@lucide/vue": "^1.45.0",
