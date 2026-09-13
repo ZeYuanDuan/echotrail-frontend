@@ -1,4 +1,6 @@
-import { computed, reactive, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
+import axios from 'axios'
+import { chatLlm } from '@/lib/llm'
 import { demoEvent, mockReply, trailEvents, type Message, type TrailEvent } from '@/mocks/echo'
 
 const STORAGE_KEY = 'echotrail-demo-v1'
@@ -63,10 +65,43 @@ function restore(): DemoState {
   }
 }
 const state = reactive<DemoState>(restore())
-const status = reactive({ busy: false, storageError: false })
+const live = ref(false)
+let mockConversation = {
+  messages: state.messages,
+  draft: state.draft,
+  insight: state.insight,
+  sourceId: state.sourceId,
+}
+let liveConversation = {
+  messages: [] as Message[],
+  draft: '',
+  insight: null as TrailEvent | null,
+  sourceId: null as number | null,
+}
+const status = reactive({ busy: false, storageError: false, error: '' })
+function toggleLive() {
+  if (status.busy) return
+  const current = {
+    messages: state.messages,
+    draft: state.draft,
+    insight: state.insight,
+    sourceId: state.sourceId,
+  }
+  if (live.value) {
+    liveConversation = current
+    Object.assign(state, mockConversation)
+    live.value = false
+  } else {
+    mockConversation = current
+    live.value = true
+    Object.assign(state, liveConversation)
+  }
+  status.error = ''
+}
 watch(
   state,
   () => {
+    if (live.value) return
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
       status.storageError = false
@@ -91,6 +126,7 @@ const saved = computed(
 const delay = () => new Promise((resolve) => setTimeout(resolve, 450))
 function newChat() {
   if (status.busy) return
+  status.error = ''
   state.messages = []
   state.draft = ''
   state.insight = null
@@ -99,10 +135,32 @@ function newChat() {
 async function send() {
   const text = state.draft.trim()
   if (!text || status.busy) return
+  if (live.value && (text.length > 2000 || state.messages.length >= 32)) {
+    status.error = '每則訊息最多 2000 字，每段對話最多 16 輪；請縮短文字或點 ＋ New。'
+    return
+  }
+  status.error = ''
   state.messages.push({ role: 'user', text })
   state.draft = ''
   state.insight = null
   status.busy = true
+  if (live.value) {
+    try {
+      const { text: reply } = await chatLlm(state.messages)
+      state.messages.push({ role: 'echo', text: reply })
+    } catch (error) {
+      state.messages.pop()
+      state.draft = text
+      const data: unknown = axios.isAxiosError(error) ? error.response?.data : null
+      status.error =
+        data && typeof data === 'object' && 'error' in data && typeof data.error === 'string'
+          ? data.error
+          : '暫時無法取得回覆，請確認對話服務已啟動，再按送出重試。'
+    } finally {
+      status.busy = false
+    }
+    return
+  }
   await delay()
   state.messages.push({
     role: 'echo',
@@ -111,6 +169,7 @@ async function send() {
   status.busy = false
 }
 async function generateInsight() {
+  if (live.value) return
   if (status.busy || !state.messages.some((m) => m.role === 'user') || state.insight) return
   status.busy = true
   await delay()
@@ -140,6 +199,7 @@ async function saveInsight() {
 }
 function discuss(event: TrailEvent) {
   if (status.busy) return
+  if (live.value) toggleLive()
   newChat()
   state.sourceId = event.id
   state.messages = [
@@ -152,12 +212,17 @@ function discuss(event: TrailEvent) {
 }
 function reset() {
   if (!status.busy) {
+    if (live.value) toggleLive()
+    liveConversation = { messages: [], draft: '', insight: null, sourceId: null }
+    status.error = ''
     Object.assign(state, initialState())
   }
 }
 export function useEcho() {
   return {
     state,
+    live,
+    toggleLive,
     status,
     allEvents,
     updated,

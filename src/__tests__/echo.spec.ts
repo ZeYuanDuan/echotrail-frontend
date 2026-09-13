@@ -1,6 +1,9 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { useEcho } from '@/composables/useEcho'
+import { chatLlm } from '@/lib/llm'
+
+vi.mock('@/lib/llm', () => ({ chatLlm: vi.fn() }))
 
 const echo = useEcho()
 async function complete(action: () => Promise<void>) {
@@ -20,6 +23,45 @@ afterEach(() => {
 })
 
 describe('Mock conversation workflow', () => {
+  it('keeps live history separate and sends previous turns without persisting them', async () => {
+    echo.state.draft = '示範草稿'
+    await nextTick()
+    const stored = localStorage.getItem('echotrail-demo-v1')
+    echo.toggleLive()
+    vi.mocked(chatLlm).mockResolvedValue({ text: '你在意哪個部分？' })
+    echo.state.draft = '虛構：小晴完成海報'
+    await echo.send()
+    echo.state.draft = '她很開心'
+    await echo.send()
+    expect(vi.mocked(chatLlm).mock.calls[1]?.[0].slice(0, 3)).toEqual([
+      { role: 'user', text: '虛構：小晴完成海報' },
+      { role: 'echo', text: '你在意哪個部分？' },
+      { role: 'user', text: '她很開心' },
+    ])
+    expect(localStorage.getItem('echotrail-demo-v1')).toBe(stored)
+    await echo.generateInsight()
+    expect(echo.state.insight).toBeNull()
+    echo.toggleLive()
+    expect(echo.state.draft).toBe('示範草稿')
+    echo.toggleLive()
+    expect(echo.state.messages).toHaveLength(4)
+    echo.newChat()
+    expect(echo.state.messages).toHaveLength(0)
+  })
+
+  it('restores failed input and prevents mode changes during a live request', async () => {
+    echo.toggleLive()
+    vi.mocked(chatLlm).mockRejectedValue(new Error('offline'))
+    echo.state.draft = '虛構訊息'
+    const pending = echo.send()
+    echo.toggleLive()
+    expect(echo.live.value).toBe(true)
+    await pending
+    expect(echo.state.messages).toHaveLength(0)
+    expect(echo.state.draft).toBe('虛構訊息')
+    expect(echo.status.error).toBeTruthy()
+    expect(echo.status.busy).toBe(false)
+  })
   it('saves the actual conversation, updates the trail once, and persists it', async () => {
     echo.state.draft = '工程師離職了，我有點累'
     await complete(echo.send)

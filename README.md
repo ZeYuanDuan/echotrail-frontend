@@ -38,6 +38,10 @@ npm run preview     # 預覽打包結果
 
 ## API 與元件
 
+### Gemini 本機連線測試
+
+在根目錄 `.env.server.local` 填入 `GEMINI_API_KEY`（新環境可複製 `server/.env.example`），執行 `nvm use`、`npm run dev:llm`，另開終端執行 `npm run test:gemini`。測試只送出虛構文字。聊天頁可按「切換 Gemini 對話」使用即時多輪回覆，預設仍為假資料模式。完整環境設定與 API 契約見 [Gemini 串接說明](docs/specs/gemini-connection.md)。
+
 - `src/lib/api.ts` 提供共用 Axios instance，透過 `VITE_API_BASE_URL` 設定後端網址，預設 `/api`。
 - 本機串接獨立後端時，請設定後端網址並由後端允許 CORS，或另加 Vite proxy。
 - `VITE_*` 會公開於瀏覽器，LLM API 金鑰必須保留在服務端。

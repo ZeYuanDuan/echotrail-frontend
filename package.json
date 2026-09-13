@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:api": "node --env-file=.env.server.local server/index.ts",
+    "dev:llm": "run-p dev:api dev",
+    "test:gemini": "node scripts/test-gemini.ts",
     "build": "run-p type-check \"build-only {@}\" --",
     "preview": "vite preview",
     "test:unit": "vitest",

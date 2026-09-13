@@ -2,9 +2,10 @@
 import { nextTick, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import EchoCard from '@/components/echo/EchoCard.vue'
+import { Button } from '@/components/ui/button'
 import { suggestions } from '@/mocks/echo'
 import { useEcho } from '@/composables/useEcho'
-const { state, status, saved, send, generateInsight, saveInsight } = useEcho()
+const { state, status, saved, live, toggleLive, send, generateInsight, saveInsight } = useEcho()
 const router = useRouter()
 const bottom = ref<HTMLElement | null>(null)
 const input = ref<HTMLTextAreaElement | null>(null)
@@ -36,11 +37,29 @@ async function updateDashboard() {
 </script>
 <template>
   <div class="chat-wrap">
+    <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <span class="text-sm text-muted-foreground" role="status">{{
+        live ? 'Gemini 即時對話' : '假資料體驗'
+      }}</span>
+      <Button
+        type="button"
+        variant="outline"
+        :aria-pressed="live"
+        :disabled="status.busy"
+        @click="toggleLive"
+      >
+        {{ live ? '切回假資料' : '切換 Gemini 對話' }}
+      </Button>
+    </div>
+    <p v-if="live" class="mb-4 text-sm text-muted-foreground">
+      訊息會傳送至 Gemini，測試請使用虛構內容。對話僅保留於本次開啟期間；Echo Card 與 Dashboard
+      尚未串接 AI。
+    </p>
     <h1 v-if="!state.messages.length" class="wtitle">👋 Hi Welcome to EchoTrail!</h1>
     <template v-else>
       <div class="chat-heading">
         <h1>與艾可聊聊</h1>
-        <span class="demo-label">模擬對話</span>
+        <span class="demo-label">{{ live ? 'Gemini' : '模擬對話' }}</span>
       </div>
       <div aria-live="polite" class="chat-messages">
         <div
@@ -54,7 +73,7 @@ async function updateDashboard() {
           {{ state.insight ? '正在更新 Dashboard…' : '艾可整理中…' }}
         </p>
       </div>
-      <div v-if="!state.insight" class="insight-btn-wrap">
+      <div v-if="!live && !state.insight" class="insight-btn-wrap">
         <button class="insight-btn" :disabled="status.busy" @click="generateInsight">
           ✨ Generate Insight
         </button>
@@ -69,6 +88,7 @@ async function updateDashboard() {
         </button>
       </EchoCard>
     </template>
+    <p v-if="status.error" role="alert" class="mb-3 text-sm text-destructive">{{ status.error }}</p>
     <form class="input-box" @submit.prevent="send">
       <label class="sr-only" for="chat-input">和艾可聊聊</label>
       <textarea
@@ -77,6 +97,7 @@ async function updateDashboard() {
         v-model="state.draft"
         class="input-text"
         rows="2"
+        :maxlength="live ? 2000 : undefined"
         placeholder="和我聊聊你的職涯經驗或近期發生的事吧"
         :disabled="status.busy"
         @keydown.enter="onEnter"
@@ -134,7 +155,9 @@ async function updateDashboard() {
         <div class="sub">{{ suggestion.subtitle }}</div>
       </button>
     </div>
-    <p class="demo-note">假資料體驗 · 不需登入 · Enter 送出，Shift + Enter 換行</p>
+    <p class="demo-note">
+      {{ live ? 'Gemini 即時回覆' : '假資料體驗 · 不需登入' }} · Enter 送出，Shift + Enter 換行
+    </p>
     <div ref="bottom"></div>
   </div>
 </template>
