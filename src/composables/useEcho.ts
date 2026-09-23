@@ -1,6 +1,6 @@
 import { computed, reactive, ref, watch } from 'vue'
 import axios from 'axios'
-import { chatLlm } from '@/lib/llm'
+import { chatLlm, generateInsightLlm } from '@/lib/llm'
 import { demoEvent, mockReply, trailEvents, type Message, type TrailEvent } from '@/mocks/echo'
 
 const STORAGE_KEY = 'echotrail-demo-v1'
@@ -25,7 +25,18 @@ function isEvent(value: unknown): value is TrailEvent {
       (key) => typeof e[key] === 'string',
     ) &&
     Array.isArray(e.happen) &&
-    e.happen.every((item) => typeof item === 'string')
+    e.happen.every((item) => typeof item === 'string') &&
+    (e.signals === undefined ||
+      (Array.isArray(e.signals) &&
+        e.signals.every(
+          (signal) =>
+            !!signal &&
+            typeof signal === 'object' &&
+            ['riasec', 'disc', 'schein'].includes(String(signal.framework)) &&
+            typeof signal.dimension === 'string' &&
+            typeof signal.strength === 'number' &&
+            typeof signal.evidenceQuote === 'string',
+        )))
   )
 }
 function restore(): DemoState {
@@ -53,12 +64,17 @@ function restore(): DemoState {
       (saved.sourceId !== null && typeof saved.sourceId !== 'number')
     )
       return initialState()
+    const idMap = new Map(saved.events.map((event, index) => [event.id, index + 1]))
+    const events = saved.events.map((event, index) => ({ ...event, id: index + 1 }))
+    const insight = saved.insight
+      ? { ...saved.insight, id: idMap.get(saved.insight.id) ?? events.length + 1 }
+      : null
     return {
-      events: saved.events,
+      events,
       messages: saved.messages,
       draft: saved.draft,
-      insight: saved.insight,
-      sourceId: saved.sourceId,
+      insight,
+      sourceId: saved.sourceId === null ? null : (idMap.get(saved.sourceId) ?? null),
     }
   } catch {
     return initialState()
@@ -124,6 +140,7 @@ const saved = computed(
     state.events.some((e) => JSON.stringify(e) === JSON.stringify(state.insight)),
 )
 const delay = () => new Promise((resolve) => setTimeout(resolve, 450))
+const nextEventId = () => Math.max(0, ...state.events.map((event) => event.id)) + 1
 function newChat() {
   if (status.busy) return
   status.error = ''
@@ -169,22 +186,84 @@ async function send() {
   status.busy = false
 }
 async function generateInsight() {
-  if (live.value) return
   if (status.busy || !state.messages.some((m) => m.role === 'user') || state.insight) return
+  status.error = ''
   status.busy = true
+  if (live.value) {
+    try {
+      const result = await generateInsightLlm(state.messages)
+      state.insight = {
+        id: nextEventId(),
+        date: new Intl.DateTimeFormat('zh-TW', { month: 'numeric', day: 'numeric' }).format(
+          new Date(),
+        ),
+        quarter: Math.floor(new Date().getMonth() / 3) + 1,
+        ...result.card,
+        signals: result.signals,
+        dashboard: result.dashboard,
+        isNew: true,
+      }
+    } catch (error) {
+      const data: unknown = axios.isAxiosError(error) ? error.response?.data : null
+      status.error =
+        data && typeof data === 'object' && 'error' in data && typeof data.error === 'string'
+          ? data.error
+          : '暫時無法產生洞察，請保留對話後再試一次。'
+    } finally {
+      status.busy = false
+    }
+    return
+  }
   await delay()
   const original = allEvents.value.find((e) => e.id === state.sourceId)
   const first = state.messages.find((m) => m.role === 'user')!.text
+  const quote = state.messages.filter((m) => m.role === 'user').slice(-1)[0]!.text
   state.insight = {
     ...(original ?? demoEvent),
-    id: original?.id ?? Math.max(6, ...allEvents.value.map((e) => e.id)) + 1,
+    id: original?.id ?? nextEventId(),
     title:
       original?.title ??
       (/工程師|離職/.test(first)
         ? demoEvent.title
         : first.slice(0, 24) + (first.length > 24 ? '…' : '')),
     happen: state.messages.filter((m) => m.role === 'user').map((m) => m.text),
-    quote: state.messages.filter((m) => m.role === 'user').slice(-1)[0]!.text,
+    quote,
+    signals: [
+      { framework: 'riasec', dimension: 'I', strength: 8, evidenceQuote: quote },
+      { framework: 'disc', dimension: 'C', strength: 7, evidenceQuote: quote },
+      { framework: 'schein', dimension: 'technical', strength: 8, evidenceQuote: quote },
+    ],
+    dashboard: {
+      persona: {
+        headline: '重視釐清問題、用方法做職涯判斷的實踐者',
+        summaries: ['會主動整理混亂資訊', '在意成長是否有具體支撐', '傾向用證據取代恐慌'],
+        quote,
+      },
+      anchor: {
+        primary: '專家達人',
+        ability: ['拆解問題', '整理資訊', '建立判斷方法'],
+        motivation: ['持續成長', '做有意義的事', '看見實質成果'],
+        values: ['具體證據', '自主判斷', '不被恐慌推著走'],
+      },
+      keywords: [
+        { text: '成長', weight: 5 },
+        { text: '方法', weight: 4 },
+        { text: '判斷', weight: 4 },
+        { text: '環境', weight: 3 },
+        { text: '改變', weight: 2 },
+      ],
+      patterns: [
+        { title: '遇到不確定時，會先尋找可驗證的方法', evidenceQuote: quote },
+        { title: '會把情緒重新整理成下一步問題', evidenceQuote: quote },
+      ],
+      northStar: {
+        primaryAnchor: '專家達人',
+        tagline: '靠專業判斷看清方向，也讓成長有具體依據',
+        desires: ['累積可被驗證的專業能力', '在工作中持續解決真正的問題'],
+        bottomLine: '不在缺乏成長空間、只能靠恐慌做決定的環境裡硬撐。',
+        nextSteps: ['把判斷方法帶進更早期的規劃', '持續記錄能代表專業成長的事件'],
+      },
+    },
     isNew: true,
   }
   status.busy = false

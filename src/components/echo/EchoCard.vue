@@ -29,17 +29,6 @@ defineProps<{ event: TrailEvent }>()
         {{ event.value }}
         <p class="ec-quote">引證原話：「{{ event.quote }}」</p>
       </section>
-      <section class="echo-box">
-        <h3>{{ event.isNew ? '這次，多了一些新發現' : '與 My Dashboard 的關聯' }}</h3>
-        <div v-if="event.isNew" class="donut-box">
-          <div class="insight-donut" role="img" aria-label="核心特質 80%，新發現 20%"></div>
-          <div>
-            <div class="chip chip-yellow">方法導向判斷</div>
-            <div class="chip chip-green">被市場消息牽動節奏</div>
-          </div>
-        </div>
-        <p v-else>此事件已計入你的 My Dashboard 分析結果中。</p>
-      </section>
     </div>
     <slot />
   </article>

@@ -1,13 +1,14 @@
 import { api } from './api'
+import type { DashboardProfile, InsightSignal } from '@/mocks/echo'
 
-export interface LlmTestResponse {
+export interface LlmChatResponse {
   text: string
 }
 
 export async function chatLlm(
   messages: { role: 'user' | 'echo'; text: string }[],
-): Promise<LlmTestResponse> {
-  const { data } = await api.post<LlmTestResponse>(
+): Promise<LlmChatResponse> {
+  const { data } = await api.post<LlmChatResponse>(
     '/llm/chat',
     {
       messages: messages.map(({ role, text }) => ({
@@ -21,7 +22,33 @@ export async function chatLlm(
   return data
 }
 
-export async function testLlm(message: string): Promise<LlmTestResponse> {
-  const { data } = await api.post<LlmTestResponse>('/llm/test', { message }, { timeout: 30_000 })
+export interface InsightResponse {
+  card: {
+    title: string
+    happen: string[]
+    emotion: string
+    like: string
+    dislike: string
+    value: string
+    quote: string
+  }
+  signals: InsightSignal[]
+  dashboard: DashboardProfile
+}
+
+export async function generateInsightLlm(
+  messages: { role: 'user' | 'echo'; text: string }[],
+): Promise<InsightResponse> {
+  const { data } = await api.post<InsightResponse>(
+    '/llm/insight',
+    {
+      messages: messages.map(({ role, text }) => ({
+        role: role === 'echo' ? 'model' : 'user',
+        text,
+      })),
+    },
+    { timeout: 60_000 },
+  )
+  if (!data.card || !Array.isArray(data.signals)) throw new Error('模型產出格式錯誤。')
   return data
 }

@@ -1,61 +1,97 @@
-# Gemini 最小文字串接
+# Gemini 對話、產卡與訊號 API
 
-聊天頁可切換假資料與 Gemini 多輪對話；本輪不產生真實 Echo Card。
+## 範圍
 
-## 設定與啟動
+前端可在假資料與 Gemini 模式間切換。Gemini 模式完成以下閉環：
 
-使用 `.nvmrc` 指定的 Node.js 24。根目錄 `.env.server.local` 已準備空白金鑰欄位，填入：
+1. 使用者逐輪輸入，前端呼叫 EchoTrail backend 的 `POST /api/llm/chat`。
+2. 使用者點擊 Generate Insight，前端把完整逐字稿送至 `POST /api/llm/insight`。
+3. 後端產生結構化 Echo Card、Dashboard 五類主要洞察與 RIASEC／DISC／Schein 訊號。
+4. 前端儲存本次結果，更新 My Trail，並以訊號聚合 Dashboard 圖表。
 
-```dotenv
-GEMINI_API_KEY=在本機填入你的金鑰
-GEMINI_MODEL=gemini-3.5-flash-lite
+LLM 金鑰與 system prompt 都只存在 `echotrail-backend`。前端不接受、保存或傳送 system prompt 與金鑰。
+
+## 本機啟動
+
+在 backend repo 複製 `.env.example` 為 `.env.local`，填入 `GEMINI_API_KEY`，再啟動：
+
+```bash
+npm run dev
 ```
 
-該檔案已由 `.gitignore` 排除，僅由 Node 的 `--env-file` 載入，不要把金鑰貼到聊天、前端或 `VITE_*`。其他開發者可將 `server/.env.example` 複製到根目錄並命名為 `.env.server.local`。更改設定後重啟服務；shell 中同名環境變數會優先於檔案。
+backend 預設監聽 `127.0.0.1:8080`。前端另開終端執行 `npm run dev`；Vite 會把 `/api` 代理至 backend。
 
-前端 `VITE_API_BASE_URL` 使用 `/api`（預設值）。
+## 對話契約
 
-```sh
-nvm use
-npm run dev:llm
+`POST /api/llm/chat` 輸入：
+
+```json
+{
+  "messages": [
+    { "role": "user", "text": "..." },
+    { "role": "model", "text": "..." },
+    { "role": "user", "text": "..." }
+  ]
+}
 ```
 
-另開終端，執行一次虛構文字測試（會消耗該金鑰的模型額度）：
+訊息必須由 `user` 開始並交替排列，聊天請求以 `user` 結尾。單則最多 2,000 字、單次最多 31 則、總長最多 16,000 字。
 
-```sh
-nvm use
-npm run test:gemini
+成功回傳 `{ "text": "..." }`。艾可回覆遵守「引用原句、指出一個觀察、只問一題」，並依序收集事件、情緒、在意與不能接受的點。
+
+## 產卡與圖表訊號契約
+
+`POST /api/llm/insight` 接受同一份逐字稿，可由 `model` 訊息結尾。成功回傳：
+
+```json
+{
+  "card": {
+    "title": "事件標題",
+    "happen": ["事件摘要"],
+    "emotion": "事件相關情緒",
+    "like": "我在意……",
+    "dislike": "我不喜歡……",
+    "value": "價值主張",
+    "quote": "使用者逐字原句"
+  },
+  "signals": [
+    {
+      "framework": "riasec",
+      "dimension": "I",
+      "strength": 8,
+      "evidenceQuote": "使用者逐字原句"
+    }
+  ],
+  "dashboard": {
+    "persona": { "headline": "...", "summaries": ["..."], "quote": "逐字原句" },
+    "anchor": {
+      "primary": "專家達人",
+      "ability": ["..."],
+      "motivation": ["..."],
+      "values": ["..."]
+    },
+    "keywords": [{ "text": "問題拆解", "weight": 5 }],
+    "patterns": [{ "title": "先釐清再行動", "evidenceQuote": "逐字原句" }],
+    "northStar": {
+      "primaryAnchor": "專家達人",
+      "tagline": "...",
+      "desires": ["..."],
+      "bottomLine": "...",
+      "nextSteps": ["..."]
+    }
+  }
+}
 ```
 
-測試成功會顯示「Gemini 連線成功」與一句摘要。缺少金鑰時回傳設定提示；429 表示速率或額度限制，需在 AI Studio 確認，不自動重試、不切換其他模型或啟用付費。Free tier 不代表所有模型都有免費額度。
+後端會驗證 Echo Card `quote`、Persona `quote`、行為模式與框架訊號的每個 `evidenceQuote` 都是某一則 user 訊息的精確 substring，並驗證框架維度、權重與陣列數量。產出不合格時，後端會把失敗 JSON 與具體驗證原因回饋給模型，最多修正重試兩次；仍不合格才回傳錯誤，不把未 grounded 的內容送進 Dashboard。
 
-## 契約與範圍
+## 固定腳本與穩定性
 
-- `POST /api/llm/test`：輸入 `{ "message": "虛構文字" }`，1–2000 字。
-- 成功：`200 { "text": "模型回覆" }`；失敗：非 2xx `{ "error": "安全的錯誤訊息" }`。
-- 前端可使用 `src/lib/llm.ts` 的 `testLlm`，沿用共用 Axios `api`。
-- `test:gemini` 經 Vite 5173 代理到 Node 3001，再呼叫 Gemini，測完整本機 HTTP 路徑。
-- Node 僅監聽 `127.0.0.1:3001`；此服務沒有正式使用者驗證，只供本機開發，不能直接公開部署。
-- 金鑰只放在上游請求 header；不記錄原始 Axios 錯誤、輸入文字或金鑰。
-- Gemini 對話僅存於記憶體，不寫入 localStorage、不上傳履歷；假資料模式沿用既有儲存。
-- 模型先使用 `gemini-3.5-flash-lite`；帳號實際可用性須在金鑰填入後驗證。
+Gemini 模式提供「規格被簡化」、「單次疏漏」與「跨團隊成功」三組固定腳本按鈕，每組各有三輪，每輪仍取得真實模型回覆。對話第一輪送出後會鎖定所選腳本，避免中途混用不同情境。backend 的 `npm run test:gemini` 會對已啟動的 API 節流執行五次完整三輪對話與產卡，逐次輸出耗時與 grounded signal 數量。預設每次請求間隔五秒，避免測試程式以不符合真人操作的突發流量撞上速率限制；可用 `REQUEST_INTERVAL_MS` 調整。此測試會呼叫真實 Gemini；一般 `npm test` 不會。
 
-## 驗證
+## 錯誤與隱私
 
-單元測試模擬 Gemini 回應，驗證輸入限制、空白／被阻擋回覆、429、逾時與金鑰不洩漏。`npm test` 不會呼叫真實 Gemini；`npm run test:gemini` 與 Gemini 模式的送出按鈕會呼叫真實 API。
-
-官方文件：[generateContent](https://ai.google.dev/api/generate-content)、[模型](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite)、[金鑰](https://ai.google.dev/gemini-api/docs/api-key)、[額度](https://ai.google.dev/gemini-api/docs/rate-limits)。
-
-## 2026-09-13 連線驗證
-
-新帳號呼叫 `gemini-2.5-flash-lite` 收到 404，Google 回應建議改用 `gemini-3.5-flash-lite`。確認官方定價列有免費文字額度後，已更新模型設定，經 Vite → Node → Gemini 成功取得固定虛構案例的繁體中文回覆。此結果確認金鑰與當下模型可用，不代表剩餘配額無上限。
-
-## 聊天模式切換
-
-- 聊天頁上方「切換 Gemini 對話」按鈕啟用即時回覆，再點「切回假資料」恢復示範對話。初始為假資料，切換不會送出 API。
-- 兩模式分別保留本次對話與草稿；Gemini 歷史不讀入既有示範資料、不寫入 localStorage，重新整理後清除。側邊欄 ＋ New 清除目前模式的對話。
-- 送出期間禁止重複送出或切換模式；錯誤顯示在輸入框上方，草稿恢復供手動重試，不自動重送。
-- Gemini 模式隱藏 Generate Insight，Dashboard 與事件分析仍為示範資料。
-- `POST /api/llm/chat` 接收 `{ messages: [{ role: 'user' | 'model', text: string }] }`，成功與錯誤契約同 test API。
-- 歷史需 user/model 交替、user 結尾，每則最多 2000 字，單次最多 31 則訊息、總文字 16000 字。每段最多 16 輪，達上限可開始新對話。
-- 服務端設定艾可語氣與單一問題引導，不接受前端傳入 system prompt 或金鑰。
+- 前端送出期間防止重複操作；失敗時保留原輸入供重試。
+- 後端逾時為 25 秒；前端產卡等待上限為 60 秒。
+- 上游錯誤與 request headers 不會直接回傳，避免洩漏 API key。
+- 固定腳本是虛構資料；本版本未提供正式帳號、雲端事件儲存或個資刪除流程，不應輸入真實敏感資料。
