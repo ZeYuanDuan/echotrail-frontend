@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { nextTick, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import EchoCard from '@/components/echo/EchoCard.vue'
 import { Button } from '@/components/ui/button'
-import { suggestions } from '@/mocks/echo'
+import { demoConversations, suggestions, type DemoConversation } from '@/mocks/echo'
 import { useEcho } from '@/composables/useEcho'
 const { state, status, saved, live, toggleLive, send, generateInsight, saveInsight } = useEcho()
 const router = useRouter()
@@ -11,6 +11,13 @@ const bottom = ref<HTMLElement | null>(null)
 const input = ref<HTMLTextAreaElement | null>(null)
 const showSources = ref(false)
 const sourceNote = ref('')
+const selectedDemoId = ref('cross-team-success')
+const demoTurn = computed(() => state.messages.filter((message) => message.role === 'user').length)
+const selectedDemo = computed(
+  () =>
+    demoConversations.find((conversation) => conversation.id === selectedDemoId.value) ??
+    demoConversations[0]!,
+)
 watch(
   () => [state.messages.length, state.insight, status.busy],
   async () => {
@@ -22,6 +29,15 @@ function choose(index: number) {
   state.draft = suggestions[index]!.text
   sourceNote.value = '已帶入示範文字，可替換成你想聊的內容。'
   showSources.value = false
+  input.value?.focus()
+}
+function chooseDemoTurn(conversation: DemoConversation) {
+  if (demoTurn.value > 0 && conversation.id !== selectedDemoId.value) return
+  selectedDemoId.value = conversation.id
+  const text = conversation.turns[demoTurn.value]
+  if (!text) return
+  state.draft = text
+  sourceNote.value = `已帶入「${conversation.label}」第 ${demoTurn.value + 1} 輪，送出後會取得真實模型回覆。`
   input.value?.focus()
 }
 function onEnter(event: KeyboardEvent) {
@@ -52,8 +68,8 @@ async function updateDashboard() {
       </Button>
     </div>
     <p v-if="live" class="mb-4 text-sm text-muted-foreground">
-      訊息會傳送至 Gemini，測試請使用虛構內容。對話僅保留於本次開啟期間；Echo Card 與 Dashboard
-      尚未串接 AI。
+      訊息會送到 EchoTrail 後端，再由服務端呼叫
+      Gemini。測試請使用虛構內容；產卡後可追溯圖表引用的原句。
     </p>
     <h1 v-if="!state.messages.length" class="wtitle">👋 Hi Welcome to EchoTrail!</h1>
     <template v-else>
@@ -73,16 +89,15 @@ async function updateDashboard() {
           {{ state.insight ? '正在更新 Dashboard…' : '艾可整理中…' }}
         </p>
       </div>
-      <div v-if="!live && !state.insight" class="insight-btn-wrap">
+      <div v-if="!state.insight" class="insight-btn-wrap">
         <button class="insight-btn" :disabled="status.busy" @click="generateInsight">
           ✨ Generate Insight
         </button>
       </div>
       <EchoCard v-if="state.insight" :event="state.insight">
-        <p class="echo-footer">
-          已完成本次 Echo Card。這次的方向與過去在意的價值標準部分符合，也有新的訊號值得留意。
-        </p>
-        <p class="demo-note">分析欄位為固定示範內容；事件描述與引證原話保留你的輸入。</p>
+        <p class="echo-footer">已完成本次 Echo Card，可將 grounded 訊號加入 Dashboard。</p>
+        <p v-if="live" class="demo-note">卡片與圖表訊號由後端生成；所有引證已通過逐字稿比對。</p>
+        <p v-else class="demo-note">目前為固定示範內容。</p>
         <button class="update-btn" :disabled="status.busy" @click="updateDashboard">
           {{ saved ? '已更新 · 查看 Dashboard' : '更新至 Dashboard' }}
         </button>
@@ -141,6 +156,24 @@ async function updateDashboard() {
           {{ suggestion.icon }} {{ suggestion.title }}示範
         </button>
       </div>
+      <div v-if="live && demoTurn < selectedDemo.turns.length" class="script-buttons">
+        <button
+          v-for="conversation in demoConversations"
+          :key="conversation.id"
+          type="button"
+          class="script-btn"
+          :class="{ active: conversation.id === selectedDemoId }"
+          :aria-pressed="conversation.id === selectedDemoId"
+          :disabled="status.busy || (demoTurn > 0 && conversation.id !== selectedDemoId)"
+          @click="chooseDemoTurn(conversation)"
+        >
+          <span>{{ conversation.label }} · 第 {{ demoTurn + 1 }} 輪</span>
+          <small>{{ conversation.description }}</small>
+        </button>
+      </div>
+      <p v-else-if="live && demoTurn >= selectedDemo.turns.length" class="demo-note">
+        三輪固定腳本已完成，可以產生洞察。
+      </p>
       <p v-if="sourceNote" class="demo-note" role="status">{{ sourceNote }}</p>
     </form>
     <div v-if="!state.messages.length" class="suggest-row">

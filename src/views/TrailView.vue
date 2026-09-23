@@ -4,10 +4,10 @@ import { useRouter } from 'vue-router'
 import EchoCard from '@/components/echo/EchoCard.vue'
 import { Button } from '@/components/ui/button'
 import { useEcho } from '@/composables/useEcho'
-const { allEvents, discuss, status } = useEcho()
+const { allEvents, state, discuss, status } = useEcho()
 const router = useRouter()
 const showV2 = ref(false)
-const v1Event = computed(() => allEvents.value.find((event) => event.id === 6))
+const v1Event = computed(() => state.events.slice(-1)[0])
 const quarter = ref(3)
 const year = ref(2026)
 const yearOpen = ref(true)
@@ -62,6 +62,12 @@ function review() {
       </Button>
     </header>
     <EchoCard v-if="!showV2 && v1Event" :event="v1Event" />
+    <section v-else-if="!showV2" class="card empty-state">
+      <div>🌱</div>
+      <h2>還沒有留下事件</h2>
+      <p>完成一段對話並更新至 Dashboard，第一筆事件就會出現在這裡。</p>
+      <RouterLink to="/" class="update-btn">開始聊聊</RouterLink>
+    </section>
     <div id="trail-v2" v-show="showV2" class="trail-layout" style="padding: 0">
       <aside class="trail-side">
         <button class="year-toggle" :aria-expanded="yearOpen" @click="toggleYear">

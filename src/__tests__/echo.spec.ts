@@ -1,9 +1,10 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { useEcho } from '@/composables/useEcho'
-import { chatLlm } from '@/lib/llm'
+import { chatLlm, generateInsightLlm } from '@/lib/llm'
+import { demoConversations } from '@/mocks/echo'
 
-vi.mock('@/lib/llm', () => ({ chatLlm: vi.fn() }))
+vi.mock('@/lib/llm', () => ({ chatLlm: vi.fn(), generateInsightLlm: vi.fn() }))
 
 const echo = useEcho()
 async function complete(action: () => Promise<void>) {
@@ -23,6 +24,15 @@ afterEach(() => {
 })
 
 describe('Mock conversation workflow', () => {
+  it('provides three complete fixed conversation scenarios', () => {
+    expect(demoConversations).toHaveLength(3)
+    expect(new Set(demoConversations.map((conversation) => conversation.id)).size).toBe(3)
+    expect(demoConversations.every((conversation) => conversation.turns.length === 3)).toBe(true)
+    expect(
+      demoConversations.every((conversation) => conversation.turns.every((turn) => turn.trim())),
+    ).toBe(true)
+  })
+
   it('keeps live history separate and sends previous turns without persisting them', async () => {
     echo.state.draft = '示範草稿'
     await nextTick()
@@ -62,6 +72,61 @@ describe('Mock conversation workflow', () => {
     expect(echo.status.error).toBeTruthy()
     expect(echo.status.busy).toBe(false)
   })
+  it('generates a grounded live card with dashboard signals', async () => {
+    echo.toggleLive()
+    vi.mocked(chatLlm).mockResolvedValue({ text: '你做對了哪個判斷？' })
+    vi.mocked(generateInsightLlm).mockResolvedValue({
+      card: {
+        title: '需求探索成功',
+        happen: ['先訪談再設計'],
+        emotion: '有成就感',
+        like: '我擅長拆解問題',
+        dislike: '我不喜歡把需求直接當答案',
+        value: '先理解真正問題再行動',
+        quote: '我很有成就感',
+      },
+      signals: [
+        {
+          framework: 'riasec',
+          dimension: 'I',
+          strength: 8,
+          evidenceQuote: '先理解真正問題',
+        },
+      ],
+      dashboard: {
+        persona: {
+          headline: '先理解問題再行動的產品工作者',
+          summaries: ['擅長拆解問題'],
+          quote: '我很有成就感',
+        },
+        anchor: {
+          primary: '專家達人',
+          ability: ['拆解問題'],
+          motivation: ['解決真正問題'],
+          values: ['先理解再行動'],
+        },
+        keywords: [
+          { text: '理解', weight: 5 },
+          { text: '問題', weight: 4 },
+          { text: '行動', weight: 3 },
+        ],
+        patterns: [{ title: '先釐清再行動', evidenceQuote: '先理解真正問題' }],
+        northStar: {
+          primaryAnchor: '專家達人',
+          tagline: '用理解創造價值',
+          desires: ['解決真正問題'],
+          bottomLine: '不把需求直接當答案',
+          nextSteps: ['提早進行需求探索'],
+        },
+      },
+    })
+    echo.state.draft = '我很有成就感，因為我會先理解真正問題'
+    await echo.send()
+    await echo.generateInsight()
+    expect(echo.state.insight?.id).toBe(1)
+    expect(echo.state.insight?.title).toBe('需求探索成功')
+    expect(echo.state.insight?.signals?.[0]?.dimension).toBe('I')
+  })
   it('saves the actual conversation, updates the trail once, and persists it', async () => {
     echo.state.draft = '工程師離職了，我有點累'
     await complete(echo.send)
@@ -71,15 +136,15 @@ describe('Mock conversation workflow', () => {
     expect(echo.state.insight?.happen).toEqual(['工程師離職了，我有點累'])
     await complete(echo.saveInsight)
     await complete(echo.saveInsight)
-    expect(echo.allEvents.value).toHaveLength(7)
+    expect(echo.allEvents.value).toHaveLength(6)
     expect(echo.updated.value).toBe(true)
     echo.state.draft = '後來我想先跟主管討論成長機會'
     await complete(echo.send)
     await complete(echo.generateInsight)
     expect(echo.saved.value).toBe(false)
     await complete(echo.saveInsight)
-    expect(echo.allEvents.value).toHaveLength(7)
-    expect(echo.allEvents.value[6]?.quote).toBe('後來我想先跟主管討論成長機會')
+    expect(echo.allEvents.value).toHaveLength(6)
+    expect(echo.allEvents.value[0]?.quote).toBe('後來我想先跟主管討論成長機會')
     expect(JSON.parse(localStorage.getItem('echotrail-demo-v1')!).events).toHaveLength(1)
   })
   it('rejects empty and concurrent sends, and allows more than three rounds', async () => {

@@ -2,7 +2,7 @@
 
 本文件依 2026-09-13 工作區現況整理，包含尚未提交的實作。EchoTrail 是 Vue 單頁應用：以聊天整理個人經驗，產生 Echo Card，再透過 My Trail 回顧事件與 Dashboard 查看示範分析。
 
-目前預設使用假資料與瀏覽器儲存；可選擇切換 Gemini 即時文字對話。Echo Card 與 Dashboard 尚未串接真實 AI 分析，也沒有正式帳號或雲端事件儲存流程。
+目前預設保留假資料體驗，也可切換 Gemini 即時文字對話。Gemini 對話、Echo Card 與 Dashboard 訊號已串成完整本機展示流程；資料仍只保存在瀏覽器，沒有正式帳號或雲端事件儲存。
 
 ## 1. 整體架構
 
@@ -23,7 +23,7 @@ flowchart TD
     Store --> LLM[lib/llm.ts]
     LLM --> API[lib/api.ts：Axios]
     API --> Proxy[Vite /api 代理：僅開發環境]
-    Proxy --> Server[本機 Node API：3001]
+    Proxy --> Server[echotrail-backend：8080]
     Server --> Gemini[Gemini API]
     Store -. updated 經 App 的 CSS class 控制示範內容 .-> Dashboard
 ```
@@ -70,9 +70,9 @@ flowchart TD
 | `allEvents`                     | 合併六筆種子事件與儲存事件，同 ID 以儲存版本取代，再依 ID 排序 |
 | `updated`、`saved`              | 是否已有儲存事件，以及當前卡片是否與已儲存版本相同             |
 
-`Message` 包含 `role: 'user' | 'echo'` 與 `text`。`TrailEvent` 包含 ID、標題、日期、季度、事件描述、情緒、喜好／擅長、不適合、價值主張、引證原話與選用的 `isNew`。
+`Message` 包含 `role: 'user' | 'echo'` 與 `text`。`TrailEvent` 包含 ID、標題、日期、季度、事件描述、情緒、喜好／擅長、不適合、價值主張、引證原話、選用的 `isNew`，以及 grounded Dashboard signals。
 
-頁面自己的 V2 開關、季度選擇、選中事件、對話輸入框參照與 modal 參照留在各頁。My Trail 與 Dashboard 的 V2 開關互不影響，也不持久化。
+頁面的季度選擇、選中事件與對話輸入框參照留在各頁。Dashboard 的框架切換不持久化。
 
 ## 5. 主要資料流
 
@@ -84,16 +84,18 @@ flowchart TD
 4. `saveInsight()` 依事件 ID 新增或取代 `state.events` 的資料，再導向 Dashboard。
 5. My Trail 從 `allEvents` 取得合併後事件。重新討論會保留來源 ID，後續儲存更新原事件。
 
-Dashboard 的分析分數與文案仍為固定示範。儲存卡片後，`updated` 使 App 帶上 CSS class，切換 `.old-only`／`.new-only` 內容，並非重新計算分析結果。
+假資料產卡會附上三筆固定訊號，讓無後端環境仍可驗證 Dashboard 聚合與證據呈現。
 
 ### Gemini 模式
 
 1. 切換模式時，分別保留 mock 與 live 的對話、草稿及卡片上下文；切換本身不呼叫 API。
 2. `send()` 將目前對話交給 `chatLlm()`，把前端 `echo` 角色轉成 API 的 `model`。
-3. Axios 呼叫 `POST /api/llm/chat`，本機經 Vite 代理到 Node，再由 Node 呼叫 Gemini。
+3. Axios 呼叫 `POST /api/llm/chat`，本機經 Vite 代理到 `echotrail-backend`，再由 backend 呼叫 Gemini。
 4. 成功後加入模型回覆；失敗則移除本次送出的訊息並恢復草稿，讓使用者手動重試。
+5. `generateInsight()` 呼叫 `POST /api/llm/insight`，取得 Echo Card 與 grounded signals；後端負責格式、維度與逐字引用驗證。
+6. `saveInsight()` 將結果加入事件集合；Dashboard 依框架與維度聚合平均分數並列出證據帳本。
 
-送出期間以 `busy` 防止重複操作與模式切換。Gemini 模式不提供 Generate Insight；對話保留在記憶體，重新整理後消失。
+送出與產卡期間以 `busy` 防止重複操作與模式切換。Gemini 對話及其新事件保留在記憶體，重新整理後消失。
 
 ### 持久化
 
@@ -104,22 +106,21 @@ Dashboard 的分析分數與文案仍為固定示範。儲存卡片後，`update
 | 項目          | 現況                                                          |
 | ------------- | ------------------------------------------------------------- |
 | 共用 base URL | `VITE_API_BASE_URL`，預設 `/api`                              |
-| Timeout       | Axios 預設 15 秒；LLM 呼叫覆寫為 30 秒                        |
+| Timeout       | Axios 預設 15 秒；聊天 30 秒、產卡 60 秒                      |
 | 對話 API      | `POST /llm/chat`，輸入 messages，成功回傳 `{ text }`          |
-| 連線測試 API  | `POST /llm/test`，輸入 message，成功回傳 `{ text }`           |
-| 本機前端      | Vite`127.0.0.1:5173`，將 `/api` 代理至 `127.0.0.1:3001`       |
-| 本機 LLM 服務 | `server/index.ts`、`server/gemini.ts`；金鑰留在服務端環境變數 |
+| 產卡 API      | `POST /llm/insight`，回傳 Echo Card 與 grounded signals       |
+| 本機前端      | Vite `127.0.0.1:5173`，將 `/api` 代理至 backend `127.0.0.1:8080` |
+| LLM 服務      | `echotrail-backend` 的 Fastify API；金鑰與 prompts 留在後端環境變數 |
 | 正式前端產物  | `npm run build` 執行型別檢查與 Vite 建置，輸出 `dist/`        |
 
-`server/` 是此 repository 內的本機 Gemini 測試服務，沒有正式使用者驗證，不等同完整業務後端。正式部署需另行設定 API 服務與代理／CORS；Vite 開發代理不會隨 `dist/` 部署。靜態主機需將前端路由 fallback 至 `index.html`，API 路徑另行處理。
+LLM API 已移至獨立 `echotrail-backend` repository。正式部署仍需補上使用者認證與授權；Vite 開發代理不會隨 `dist/` 部署。靜態主機需將前端路由 fallback 至 `index.html`，API 路徑另行處理。
 
 ## 7. 檔案導覽與既有驗證
 
 - `src/assets/main.css`：Tailwind、語意色與全域基礎樣式，另載入 `prototype.css`、`echo.css`。
 - `src/assets/prototype.css`、`echo.css`：產品版面、展示狀態與響應式樣式。
-- `src/__tests__/echo.spec.ts`：模式隔離、請求失敗恢復、儲存與持久化、防重送、重新討論與重設。
+- `src/__tests__/echo.spec.ts`：模式隔離、請求失敗恢復、真實產卡資料映射、儲存與持久化、防重送、重新討論與重設。
 - `src/__tests__/App.spec.ts`：未知路由導向首頁。
-- `server/gemini.test.ts`：本機 Gemini 服務的輸入驗證與錯誤處理。
 - `docs/specs/dashboard.md`、`my-trail.md`、`gemini-connection.md`：各功能的版本範圍與契約。
 
-程式變更依專案規則執行 lint、type-check、format:check；重要流程執行 Vitest，建置相關修改執行 build。本次僅整理架構文件，沒有重新執行測試或呼叫 Gemini。
+程式變更依專案規則執行 lint、type-check、format:check；重要流程執行 Vitest，建置相關修改執行 build。真實 Gemini 穩定性由 backend 的 `npm run test:gemini` 驗證。
