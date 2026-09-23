@@ -40,7 +40,7 @@ npm run preview     # 預覽打包結果
 
 ### Gemini 本機連線測試
 
-在根目錄 `.env.server.local` 填入 `GEMINI_API_KEY`（新環境可複製 `server/.env.example`），執行 `nvm use`、`npm run dev:llm`，另開終端執行 `npm run test:gemini`。測試只送出虛構文字。聊天頁可按「切換 Gemini 對話」使用即時多輪回覆，預設仍為假資料模式。完整環境設定與 API 契約見 [Gemini 串接說明](docs/specs/gemini-connection.md)。
+Gemini 金鑰與呼叫已移至 `echotrail-backend`。先依 backend README 設定 `.env.local` 並在 `127.0.0.1:8080` 啟動服務，再執行本 repo 的 `npm run dev`。聊天頁可切換 Gemini 多輪對話、使用三輪固定腳本，並產生真實 Echo Card 與可追溯的 Dashboard 訊號。完整契約見 [Gemini 串接說明](docs/specs/gemini-connection.md)。
 
 - `src/lib/api.ts` 提供共用 Axios instance，透過 `VITE_API_BASE_URL` 設定後端網址，預設 `/api`。
 - 本機串接獨立後端時，請設定後端網址並由後端允許 CORS，或另加 Vite proxy。
@@ -55,12 +55,12 @@ npm run preview     # 預覽打包結果
 1. 首頁輸入訊息，或點日記／履歷／隨心聊聊卡片帶入示範文字。
 2. 送出後取得簡易 mock 回覆，可持續對話；Enter 送出、Shift + Enter 換行。
 3. 點 `Generate Insight` 產生 Echo Card，再點「更新至 Dashboard」。
-4. Dashboard 預設顯示 V1 的硬／軟實力、RIASEC 與溝通風格；右上角可展開 V2 假資料（Persona、共鳴之錨、排行榜與職涯錨定）。完整範圍見 [Dashboard 規格](docs/specs/dashboard.md)。
+4. Dashboard 依已儲存事件的 grounded signals 聚合 RIASEC、DISC 與職涯錨點，並可追溯每筆分數的原句證據。完整範圍見 [Dashboard 規格](docs/specs/dashboard.md)。
 5. My Trail 預設顯示事件 6 詳情；右上角獨立的 V2 按鈕可展開季度摘要、事件切換與重新討論。完整範圍見 [My Trail 規格](docs/specs/my-trail.md)。
 6. 「＋ New」開始新對話；「重設示範資料」確認後恢復初始六筆事件。
 
 資料存於瀏覽器 localStorage（`echotrail-demo-v1`），重新整理會保留；儲存不可用時仍可在當次頁面操作。
-歷史事件、分析分數與 Echo Card 分析使用 PM prototype 的固定示範資料，新卡片日期固定為 2026 年 7 月 20 日（Q3）。事件描述與引證原話使用實際輸入。重新討論會更新原事件，不新增重複事件。
+歷史事件與假資料模式的 Echo Card 使用固定示範資料；假資料產卡附上固定圖表訊號供離線展示。Gemini 模式的卡片與圖表訊號則由 backend 根據對話產生。重新討論會更新原事件，不新增重複事件。
 履歷與隨心聊聊入口僅帶入示範文字，沒有檔案解析、真實 AI 或後端請求。
 
 - `src/mocks/echo.ts`：歷史事件、示範輸入與 mock 回覆。

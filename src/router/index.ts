@@ -4,7 +4,11 @@ import HomeView from '@/views/HomeView.vue'
 export const routes = [
   { path: '/', name: 'home', component: HomeView },
   { path: '/trail', name: 'trail', component: () => import('@/views/TrailView.vue') },
-  { path: '/dashboard', name: 'dashboard', component: () => import('@/views/DashboardView.vue') },
+  {
+    path: '/dashboard/:section?',
+    name: 'dashboard',
+    component: () => import('@/views/DashboardView.vue'),
+  },
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
 
