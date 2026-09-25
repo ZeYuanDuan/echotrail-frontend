@@ -4,7 +4,12 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 import { routes } from '@/router'
 import { useIdentity } from '@/composables/useIdentity'
 import { useDashboard } from '@/composables/useDashboard'
-import { fetchDashboard, resolveUser, type DashboardSnapshot } from '@/lib/persistence'
+import {
+  fetchDashboard,
+  rebuildDashboard,
+  resolveUser,
+  type DashboardSnapshot,
+} from '@/lib/persistence'
 import DashboardView from '@/views/DashboardView.vue'
 vi.mock('@/lib/persistence', () => ({
   resolveUser: vi.fn(),
@@ -108,4 +113,22 @@ it('keeps the empty state when no run exists and ignores an old user response', 
   await pending
   expect(dashboard.snapshot.value).toBeNull()
   wrapper.unmount()
+})
+
+it('publishes a successful rebuild even when an overlapping page load read the old snapshot', async () => {
+  const id = identity.user.value!.id
+  let release!: (value: DashboardSnapshot) => void
+  vi.mocked(rebuildDashboard).mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        release = resolve
+      }),
+  )
+  const pending = dashboard.rebuild(id)
+  await dashboard.load(id)
+  expect(dashboard.snapshot.value).toBeNull()
+  const current = snapshot(id)
+  release(current)
+  await pending
+  expect(dashboard.snapshot.value).toEqual(current)
 })

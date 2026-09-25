@@ -1,10 +1,27 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, ref, watch } from 'vue'
+import axios from 'axios'
+import { useRouter } from 'vue-router'
 import EchoCard from '@/components/echo/EchoCard.vue'
+import { useDashboard } from '@/composables/useDashboard'
 import { useIdentity } from '@/composables/useIdentity'
 import { useTrail } from '@/composables/useTrail'
 const { user } = useIdentity()
 const { events, busy, error, load } = useTrail()
+const { rebuild } = useDashboard()
+const router = useRouter()
+const rebuilding = ref(false)
+const rebuildError = ref('')
+let userGeneration = 0
+watch(
+  () => user.value?.id,
+  () => {
+    userGeneration++
+    rebuilding.value = false
+    rebuildError.value = ''
+  },
+  { flush: 'sync' },
+)
 onMounted(() => {
   if (user.value) void load(user.value.id)
 })
@@ -18,6 +35,28 @@ function date(iso: string) {
     month: 'long',
     day: 'numeric',
   }).format(new Date(iso))
+}
+async function updateDashboard() {
+  const identity = user.value?.id
+  if (!identity || rebuilding.value || !events.value.length) return
+  const generation = userGeneration
+  rebuilding.value = true
+  rebuildError.value = ''
+  try {
+    await rebuild(identity)
+    if (generation === userGeneration && user.value?.id === identity)
+      await router.push('/dashboard')
+  } catch (caught) {
+    if (generation === userGeneration && user.value?.id === identity) {
+      const data: unknown = axios.isAxiosError(caught) ? caught.response?.data : null
+      rebuildError.value =
+        data && typeof data === 'object' && 'error' in data && typeof data.error === 'string'
+          ? data.error
+          : 'Dashboard 更新失敗，請重試。'
+    }
+  } finally {
+    if (generation === userGeneration && user.value?.id === identity) rebuilding.value = false
+  }
 }
 </script>
 <template>
@@ -35,6 +74,18 @@ function date(iso: string) {
       <RouterLink to="/" class="update-btn">開始聊聊</RouterLink>
     </section>
     <div v-else class="flex flex-col gap-6">
+      <div class="flex flex-wrap items-center gap-3">
+        <button
+          data-test="trail-rebuild"
+          type="button"
+          class="update-btn"
+          :disabled="rebuilding"
+          @click="updateDashboard"
+        >
+          {{ rebuilding ? '更新中…' : '更新至 Dashboard' }}
+        </button>
+        <p v-if="rebuildError" role="alert" class="text-destructive">{{ rebuildError }}</p>
+      </div>
       <div
         v-for="(event, index) in events"
         :key="event.id"

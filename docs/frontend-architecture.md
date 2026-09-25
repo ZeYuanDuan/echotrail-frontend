@@ -18,7 +18,8 @@ Dashboard → GET /api/dashboard?userId=... → 最新成功快照
 
 一段對話可產生多張卡片。`conversationId` 在 `+New` 時更換；「繼續此對話」保留它，並以 `segmentStartIndex` 標記下一張卡的第一則新訊息。產卡與確認只送該片段。確認請求以預覽建立時的 `clientEventId` 作冪等鍵；第一次送出時凍結 payload，回應結果不明時重試相同內容。只有明確 400 驗證錯誤才解除凍結，讓使用者修正卡片。
 
-`src/composables/useTrail.ts` 依使用者載入全部事件，保留後端 `createdAt,id` 排序。建立時間只用於顯示，不能從事件文字推日期。`src/composables/useDashboard.ts` 只載入已保存快照；重算由首頁的獨立按鈕觸發，成功後才跳轉。頁面圖表只計算 CSS 長度和位置，不在瀏覽器重新聚合分數。框架分數是事件訊號預覽，非產品最終計分。
+`src/composables/useTrail.ts` 依使用者載入全部事件，保留後端 `createdAt,id` 排序。建立時間只用於顯示，不能從事件文字推日期。`src/composables/useDashboard.ts` 只載入已保存快照；重算由首頁或 My Trail 的獨立按鈕觸發，成功後才跳轉。頁面圖表只計算 CSS 長度和位置，不在瀏覽器重新聚合分數。框架分數是事件訊號預覽，非產品最終計分。
+若確認卡片後離開或重新載入，My Trail 的「更新至 Dashboard」仍可對所有已確認事件執行重算。重算進行中若先打開 Dashboard，成功的重算結果會取代稍早讀到的舊快照。
 
 ## 路由與狀態
 
