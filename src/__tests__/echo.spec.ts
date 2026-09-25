@@ -103,6 +103,30 @@ describe('Gemini conversation workflow', () => {
     expect(echo.status.busy).toBe(false)
   })
 
+  it('rejects a message when the conversation would exceed the backend limit', async () => {
+    echo.state.messages = Array.from({ length: 8 }, (_, index) => ({
+      role: index % 2 === 0 ? ('user' as const) : ('echo' as const),
+      text: '字'.repeat(1_999),
+    }))
+    echo.state.draft = '字'.repeat(9)
+
+    await echo.send()
+
+    expect(chatLlm).not.toHaveBeenCalled()
+    expect(echo.state.draft).toBe('字'.repeat(9))
+    expect(echo.status.error).toContain('總長最多 16,000 字')
+  })
+
+  it('rejects a message longer than the backend per-message limit', async () => {
+    echo.state.draft = '字'.repeat(801)
+
+    await echo.send()
+
+    expect(chatLlm).not.toHaveBeenCalled()
+    expect(echo.state.draft).toHaveLength(801)
+    expect(echo.status.error).toContain('每則訊息最多 800 字')
+  })
+
   it('generates, saves, and persists a grounded Gemini card', async () => {
     vi.mocked(chatLlm).mockResolvedValue({ text: '你做對了哪個判斷？' })
     vi.mocked(generateInsightLlm).mockResolvedValue(insightResponse)

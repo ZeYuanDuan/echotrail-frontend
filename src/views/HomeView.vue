@@ -3,7 +3,7 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import EchoCard from '@/components/echo/EchoCard.vue'
 import { conversationScenarios, type ConversationScenario } from '@/data/conversation-scenarios'
-import { useEcho } from '@/composables/useEcho'
+import { MAX_MESSAGE_LENGTH, useEcho } from '@/composables/useEcho'
 
 const { state, status, saved, send, generateInsight, saveInsight } = useEcho()
 const router = useRouter()
@@ -101,11 +101,14 @@ async function updateDashboard() {
         v-model="state.draft"
         class="input-text"
         rows="2"
-        maxlength="2000"
+        :maxlength="MAX_MESSAGE_LENGTH"
         placeholder="和我聊聊你的職涯經驗或近期發生的事吧"
         :disabled="status.busy"
         @keydown.enter="onEnter"
       ></textarea>
+      <p class="text-right text-xs text-muted-foreground" aria-live="polite">
+        {{ state.draft.length }} / {{ MAX_MESSAGE_LENGTH }}
+      </p>
       <div class="input-controls input-controls-send-only">
         <button
           class="send-btn"

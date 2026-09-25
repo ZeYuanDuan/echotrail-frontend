@@ -5,6 +5,9 @@ import type { DashboardProfile, Message, TrailEvent } from '@/types/echo'
 
 const STORAGE_KEY = 'echotrail-v1'
 const LEGACY_STORAGE_KEY = 'echotrail-demo-v1'
+export const MAX_MESSAGE_LENGTH = 800
+const MAX_MESSAGE_COUNT = 31
+const MAX_CONVERSATION_LENGTH = 16_000
 
 interface EchoState {
   events: TrailEvent[]
@@ -167,8 +170,17 @@ function newChat() {
 async function send() {
   const text = state.draft.trim()
   if (!text || status.busy) return
-  if (text.length > 2000 || state.messages.length >= 32) {
-    status.error = '每則訊息最多 2000 字，每段對話最多 16 輪；請縮短文字或點 ＋ New。'
+  const conversationLength = state.messages.reduce(
+    (sum, message) => sum + message.text.length,
+    text.length,
+  )
+  if (
+    text.length > MAX_MESSAGE_LENGTH ||
+    state.messages.length >= MAX_MESSAGE_COUNT ||
+    conversationLength > MAX_CONVERSATION_LENGTH
+  ) {
+    status.error =
+      '每則訊息最多 800 字、每段對話最多 31 則且總長最多 16,000 字；請縮短文字或點 ＋ New。'
     return
   }
 
