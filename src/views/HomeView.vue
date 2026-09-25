@@ -5,7 +5,14 @@ import EchoCard from '@/components/echo/EchoCard.vue'
 import { conversationScenarios, type ConversationScenario } from '@/data/conversation-scenarios'
 import { MAX_MESSAGE_LENGTH, useEcho } from '@/composables/useEcho'
 
-const { state, status, saved, send, generateInsight, saveInsight } = useEcho()
+const {
+  state,
+  status,
+  dashboardReady,
+  send,
+  generateInsight,
+  updateDashboard: refreshDashboard,
+} = useEcho()
 const router = useRouter()
 const bottom = ref<HTMLElement | null>(null)
 const input = ref<HTMLTextAreaElement | null>(null)
@@ -48,8 +55,9 @@ function onEnter(event: KeyboardEvent) {
 }
 
 async function updateDashboard() {
-  await saveInsight()
-  await router.push('/dashboard')
+  if (dashboardReady.value || (await refreshDashboard())) {
+    await router.push('/dashboard')
+  }
 }
 </script>
 
@@ -79,10 +87,14 @@ async function updateDashboard() {
         </button>
       </div>
       <EchoCard v-if="state.insight" :event="state.insight">
-        <p class="echo-footer">已生成暫存 Echo Card，您仍可以繼續對話。</p>
-        <p class="demo-note">繼續對話會清除這張預覽；按下更新後，才會儲存事件並更新 Dashboard。</p>
+        <p class="echo-footer">
+          已生成暫存 Echo Card，您仍可以繼續對話，或儲存事件並重新產生 Dashboard。
+        </p>
+        <p class="demo-note">
+          繼續對話會清除這張預覽；按下更新後，才會儲存事件並重新產生 Dashboard。
+        </p>
         <button class="update-btn" :disabled="status.busy" @click="updateDashboard">
-          {{ saved ? '已更新 · 查看 Dashboard' : '更新至 Dashboard' }}
+          {{ dashboardReady ? '已更新 · 查看 Dashboard' : '更新至 Dashboard' }}
         </button>
       </EchoCard>
     </template>

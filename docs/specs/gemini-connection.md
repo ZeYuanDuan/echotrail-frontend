@@ -4,10 +4,10 @@
 
 前端預設且只使用 Gemini 對話，完成以下閉環：
 
-1. 使用者逐輪輸入，前端呼叫 EchoTrail backend 的 `POST /api/llm/chat`。
-2. 使用者點擊 Generate Insight，前端把完整逐字稿送至 `POST /api/llm/insight`。
-3. 後端產生結構化 Echo Card、Dashboard 五類主要洞察與 RIASEC／DISC／Schein 訊號。
-4. 前端儲存本次結果，更新 My Trail，並以訊號聚合 Dashboard 圖表。
+1. 第 1～10 輪使用陪伴探索 prompt，第 11～15 輪使用積極收斂 prompt。
+2. 使用者點擊 Generate Insight，或送出第 16 輪內容時，前端把完整逐字稿送至 `POST /api/llm/insight`。
+3. 後端只產生結構化 Echo Card 與本次事件的職涯錨分類；前端先顯示暫存預覽，不儲存為 My Trail 事件。使用者若繼續對話，預覽會失效，並可以再次產生新的洞察。
+4. 使用者點擊「更新至 Dashboard」後，前端才把預覽儲存為事件，並將目前全部 Echo Card 送至 `POST /api/llm/dashboard`，由後端全量重算 Dashboard 與圖表訊號。
 
 LLM 金鑰與 system prompt 都只存在 `echotrail-backend`。前端不接受、保存或傳送 system prompt 與金鑰。
 
@@ -37,11 +37,11 @@ backend 預設監聽 `127.0.0.1:8080`。前端另開終端執行 `npm run dev`�
 
 訊息必須由 `user` 開始並交替排列，聊天請求以 `user` 結尾。單則最多 800 字、單次最多 31 則、總長最多 16,000 字。
 
-成功回傳 `{ "text": "..." }`。「嗨，我是艾可。」只允許出現在第一輪；後續回覆不得重複自我介紹。回覆應直接處理使用者表達的意思，不得以「聽到你說……」等固定句型重複原話；只有關鍵詞能支撐具體觀察時，才可引用最短必要片段。
+成功回傳 `{ "text": "..." }`。後端依 user 訊息數選擇 prompt，前端不能指定階段。「嗨，我是艾可。」只允許出現在第一輪；後續回覆不得重複自我介紹。回覆應直接處理使用者表達的意思，不得以「聽到你說……」等固定句型重複原話；只有關鍵詞能支撐具體觀察時，才可引用最短必要片段。第 16 輪不呼叫此 API，而會自動進入產卡流程。
 
-## 產卡與圖表訊號契約
+## 產卡與 Dashboard 契約
 
-`POST /api/llm/insight` 接受同一份逐字稿，可由 `model` 訊息結尾。成功回傳：
+`POST /api/llm/insight` 接受同一份逐字稿，可由 `model` 訊息結尾。它只產生 Echo Card，不產生 Dashboard：
 
 ```json
 {
@@ -54,12 +54,20 @@ backend 預設監聽 `127.0.0.1:8080`。前端另開終端執行 `npm run dev`�
     "value": "價值主張",
     "quote": "使用者逐字原句"
   },
+  "careerAnchorType": "專家達人"
+}
+```
+
+`POST /api/llm/dashboard` 接受目前瀏覽器保存的全部 Echo Card。資料庫完成後，將改由後端依登入使用者取得相同資料。成功回傳：
+
+```json
+{
   "signals": [
     {
       "framework": "riasec",
       "dimension": "I",
       "strength": 8,
-      "evidenceQuote": "使用者逐字原句"
+      "evidenceQuote": "Echo Card 引證原話"
     }
   ],
   "dashboard": {
@@ -83,7 +91,7 @@ backend 預設監聽 `127.0.0.1:8080`。前端另開終端執行 `npm run dev`�
 }
 ```
 
-後端會驗證 Echo Card `quote`、Persona `quote`、行為模式與框架訊號的每個 `evidenceQuote` 都是某一則 user 訊息的精確 substring，並驗證框架維度、權重與陣列數量。產出不合格時，後端會把失敗 JSON 與具體驗證原因回饋給模型，最多修正重試兩次；仍不合格才回傳錯誤，不把未 grounded 的內容送進 Dashboard。
+產卡 API 驗證 Echo Card `quote` 是某一則 user 訊息的精確 substring。Dashboard API 每次以全部事件重算，另將事件引言整理成 `allowedEvidenceQuotes` 清單，要求模型完整複製其中一筆作為 Persona `quote`、行為模式與框架訊號的 `evidenceQuote`；證據不足時圖表訊號可以是空陣列。所有引用至少需包含 4 個文字或數字，空白、標點與其他符號不計；後端也會驗證框架與維度的允許組合、權重、陣列數量及兩處主要職涯錨一致。產出不合格時最多讓模型修正重試兩次，並以欄位索引和允許代碼指出失敗原因。
 
 ## 固定腳本與穩定性
 

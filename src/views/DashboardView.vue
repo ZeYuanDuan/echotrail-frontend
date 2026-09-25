@@ -43,50 +43,23 @@ const frameworkMeta: Record<
 }
 
 const analyzedEvents = computed(() => allEvents.value)
-const latestEvent = computed(() => analyzedEvents.value[analyzedEvents.value.length - 1])
-const profile = computed(() => latestEvent.value?.dashboard ?? null)
-const dashboardProfiles = computed(() => analyzedEvents.value.map((event) => event.dashboard))
+const dashboardEvent = computed(() =>
+  [...allEvents.value].reverse().find((event) => event.dashboard),
+)
+const profile = computed(() => dashboardEvent.value?.dashboard ?? null)
 const anchorSummary = computed(() => {
-  const unique = (items: string[]) => [...new Set(items)].slice(0, 3)
-  const primaryCounts = new Map<string, number>()
-  dashboardProfiles.value.forEach((current) => {
-    primaryCounts.set(current.anchor.primary, (primaryCounts.get(current.anchor.primary) ?? 0) + 1)
-  })
-  const primary = [...primaryCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? ''
+  const anchor = profile.value?.anchor
   return {
-    primary,
-    ability: unique(dashboardProfiles.value.flatMap((current) => current.anchor.ability)),
-    motivation: unique(dashboardProfiles.value.flatMap((current) => current.anchor.motivation)),
-    values: unique(dashboardProfiles.value.flatMap((current) => current.anchor.values)),
+    primary: anchor?.primary ?? '',
+    ability: anchor?.ability ?? [],
+    motivation: anchor?.motivation ?? [],
+    values: anchor?.values ?? [],
   }
 })
-const signals = computed(() => analyzedEvents.value.flatMap((event) => event.signals ?? []))
+const signals = computed(() => dashboardEvent.value?.signals ?? [])
 
-const keywords = computed(() => {
-  const totals = new Map<string, number>()
-  analyzedEvents.value.forEach((event) => {
-    const current = event.dashboard
-    current.keywords.forEach((keyword) => {
-      totals.set(keyword.text, (totals.get(keyword.text) ?? 0) + keyword.weight)
-    })
-  })
-  const maximum = Math.max(1, ...totals.values())
-  return [...totals.entries()]
-    .map(([text, weight]) => ({ text, weight: Math.max(1, Math.round((weight / maximum) * 5)) }))
-    .sort((a, b) => b.weight - a.weight)
-    .slice(0, 12)
-})
-const patterns = computed(() => {
-  const seen = new Set<string>()
-  return analyzedEvents.value
-    .flatMap((event) => event.dashboard.patterns)
-    .filter((pattern) => {
-      if (seen.has(pattern.title)) return false
-      seen.add(pattern.title)
-      return true
-    })
-    .slice(0, 5)
-})
+const keywords = computed(() => profile.value?.keywords ?? [])
+const patterns = computed(() => profile.value?.patterns ?? [])
 
 const chartRows = computed(() => {
   const framework = selectedFramework.value
@@ -104,11 +77,9 @@ const chartRows = computed(() => {
 })
 const strongest = computed(() => [...chartRows.value].sort((a, b) => b.score - a.score)[0])
 const selectedSignals = computed(() =>
-  analyzedEvents.value.flatMap((event) =>
-    (event.signals ?? [])
-      .filter((signal) => signal.framework === selectedFramework.value)
-      .map((signal) => ({ ...signal, eventTitle: event.title })),
-  ),
+  (dashboardEvent.value?.signals ?? [])
+    .filter((signal) => signal.framework === selectedFramework.value)
+    .map((signal) => ({ ...signal, eventTitle: dashboardEvent.value?.title ?? '' })),
 )
 const discPosition = computed(() => {
   const score = (dimension: string) =>
@@ -157,7 +128,7 @@ const northStarAxes = computed(() => {
       </div>
     </header>
 
-    <section v-if="!latestEvent || !profile" class="dashboard-empty">
+    <section v-if="!dashboardEvent || !profile" class="dashboard-empty">
       <div class="empty-orbit" aria-hidden="true"></div>
       <h2>第一個洞察還在等你</h2>
       <p>完成一段 Gemini 對話、產生 Echo Card，再按「更新至 Dashboard」。</p>

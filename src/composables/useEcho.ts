@@ -1,6 +1,6 @@
 import { computed, reactive, watch } from 'vue'
 import axios from 'axios'
-import { chatLlm, generateInsightLlm } from '@/lib/llm'
+import { chatLlm, generateDashboardLlm, generateInsightLlm } from '@/lib/llm'
 import type { DashboardProfile, Message, TrailEvent } from '@/types/echo'
 
 const STORAGE_KEY = 'echotrail-v1'
@@ -78,19 +78,21 @@ function isEvent(value: unknown): value is TrailEvent {
       (key) => typeof event[key] === 'string',
     ) &&
     isStringArray(event.happen) &&
-    Array.isArray(event.signals) &&
-    event.signals.every(
-      (signal) =>
-        !!signal &&
-        typeof signal === 'object' &&
-        ['riasec', 'disc', 'schein'].includes(
-          String((signal as Record<string, unknown>).framework),
-        ) &&
-        typeof (signal as Record<string, unknown>).dimension === 'string' &&
-        typeof (signal as Record<string, unknown>).strength === 'number' &&
-        typeof (signal as Record<string, unknown>).evidenceQuote === 'string',
-    ) &&
-    isDashboardProfile(event.dashboard)
+    typeof event.careerAnchorType === 'string' &&
+    (event.signals === undefined ||
+      (Array.isArray(event.signals) &&
+        event.signals.every(
+          (signal) =>
+            !!signal &&
+            typeof signal === 'object' &&
+            ['riasec', 'disc', 'schein'].includes(
+              String((signal as Record<string, unknown>).framework),
+            ) &&
+            typeof (signal as Record<string, unknown>).dimension === 'string' &&
+            typeof (signal as Record<string, unknown>).strength === 'number' &&
+            typeof (signal as Record<string, unknown>).evidenceQuote === 'string',
+        ))) &&
+    (event.dashboard === undefined || isDashboardProfile(event.dashboard))
   )
 }
 
@@ -156,6 +158,7 @@ const saved = computed(
     !!state.insight &&
     state.events.some((event) => JSON.stringify(event) === JSON.stringify(state.insight)),
 )
+const dashboardReady = computed(() => !!state.insight?.dashboard)
 const nextEventId = () => Math.max(0, ...state.events.map((event) => event.id)) + 1
 
 function newChat() {
@@ -199,6 +202,10 @@ async function send() {
   state.insight = null
   status.busy = true
   try {
+    if (state.messages.filter((message) => message.role === 'user').length >= 16) {
+      await requestInsight()
+      return
+    }
     const { text: reply } = await chatLlm([...state.messages])
     state.messages.push({ role: 'echo', text: reply })
   } catch (error) {
@@ -215,6 +222,19 @@ async function send() {
   }
 }
 
+async function requestInsight() {
+  const result = await generateInsightLlm([...state.messages])
+  const now = new Date()
+  state.insight = {
+    id: state.sourceId ?? nextEventId(),
+    date: new Intl.DateTimeFormat('zh-TW', { month: 'numeric', day: 'numeric' }).format(now),
+    quarter: Math.floor(now.getMonth() / 3) + 1,
+    ...result.card,
+    careerAnchorType: result.careerAnchorType,
+    isNew: true,
+  }
+}
+
 async function generateInsight() {
   if (status.busy || !state.messages.some((message) => message.role === 'user') || state.insight)
     return
@@ -222,17 +242,7 @@ async function generateInsight() {
   status.error = ''
   status.busy = true
   try {
-    const result = await generateInsightLlm([...state.messages])
-    const now = new Date()
-    state.insight = {
-      id: state.sourceId ?? nextEventId(),
-      date: new Intl.DateTimeFormat('zh-TW', { month: 'numeric', day: 'numeric' }).format(now),
-      quarter: Math.floor(now.getMonth() / 3) + 1,
-      ...result.card,
-      signals: result.signals,
-      dashboard: result.dashboard,
-      isNew: true,
-    }
+    await requestInsight()
   } catch (error) {
     const data: unknown = axios.isAxiosError(error) ? error.response?.data : null
     status.error =
@@ -244,13 +254,36 @@ async function generateInsight() {
   }
 }
 
-async function saveInsight() {
-  if (!state.insight || status.busy || saved.value) return
-  state.events = [
-    ...state.events.filter((event) => event.id !== state.insight!.id),
-    { ...state.insight },
-  ]
-  state.sourceId = state.insight.id
+async function updateDashboard() {
+  if (!state.insight || status.busy) return false
+  status.error = ''
+  status.busy = true
+  try {
+    const events = [
+      ...state.events.filter((event) => event.id !== state.insight!.id),
+      { ...state.insight },
+    ]
+    const result = await generateDashboardLlm(events)
+    state.insight = {
+      ...state.insight,
+      signals: result.signals,
+      dashboard: result.dashboard,
+    }
+    state.events = [
+      ...state.events.filter((event) => event.id !== state.insight!.id),
+      { ...state.insight },
+    ]
+    return true
+  } catch (error) {
+    const data: unknown = axios.isAxiosError(error) ? error.response?.data : null
+    status.error =
+      data && typeof data === 'object' && 'error' in data && typeof data.error === 'string'
+        ? data.error
+        : '暫時無法更新 Dashboard，Echo Card 已保留，請稍後再試。'
+    return false
+  } finally {
+    status.busy = false
+  }
 }
 
 function reset() {
@@ -271,11 +304,12 @@ export function useEcho() {
     status,
     allEvents,
     saved,
+    dashboardReady,
     newChat,
     markEventViewed,
     send,
     generateInsight,
-    saveInsight,
+    updateDashboard,
     reset,
   }
 }

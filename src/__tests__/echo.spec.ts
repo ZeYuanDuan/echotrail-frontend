@@ -2,9 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { useEcho } from '@/composables/useEcho'
 import { conversationScenarios } from '@/data/conversation-scenarios'
-import { chatLlm, generateInsightLlm } from '@/lib/llm'
+import { chatLlm, generateDashboardLlm, generateInsightLlm } from '@/lib/llm'
 
-vi.mock('@/lib/llm', () => ({ chatLlm: vi.fn(), generateInsightLlm: vi.fn() }))
+vi.mock('@/lib/llm', () => ({
+  chatLlm: vi.fn(),
+  generateInsightLlm: vi.fn(),
+  generateDashboardLlm: vi.fn(),
+}))
 
 const echo = useEcho()
 const insightResponse = {
@@ -17,6 +21,9 @@ const insightResponse = {
     value: '先理解真正問題再行動',
     quote: '我很有成就感',
   },
+  careerAnchorType: '專家達人' as const,
+}
+const dashboardResponse = {
   signals: [
     {
       framework: 'riasec' as const,
@@ -127,20 +134,68 @@ describe('Gemini conversation workflow', () => {
     expect(echo.status.error).toContain('每則訊息最多 800 字')
   })
 
-  it('generates, saves, and persists a grounded Gemini card', async () => {
+  it('keeps a generated card as a preview until Dashboard is updated', async () => {
     vi.mocked(chatLlm).mockResolvedValue({ text: '你做對了哪個判斷？' })
     vi.mocked(generateInsightLlm).mockResolvedValue(insightResponse)
+    vi.mocked(generateDashboardLlm).mockResolvedValue(dashboardResponse)
     echo.state.draft = '我很有成就感，因為我會先理解真正問題'
 
     await echo.send()
     await echo.generateInsight()
-    await echo.saveInsight()
+
+    expect(echo.state.insight?.title).toBe('需求探索成功')
+    expect(echo.allEvents.value).toHaveLength(0)
+    expect(JSON.parse(localStorage.getItem('echotrail-v1')!).events).toHaveLength(0)
+
+    await echo.updateDashboard()
     await nextTick()
 
     expect(echo.state.insight?.id).toBe(1)
     expect(echo.state.insight?.title).toBe('需求探索成功')
+    expect(echo.state.insight?.dashboard?.anchor.primary).toBe('專家達人')
     expect(echo.allEvents.value).toHaveLength(1)
     expect(JSON.parse(localStorage.getItem('echotrail-v1')!).events).toHaveLength(1)
+  })
+
+  it('continues the conversation after an insight preview and allows regenerating it', async () => {
+    vi.mocked(chatLlm).mockResolvedValue({ text: '請繼續說說看。' })
+    vi.mocked(generateInsightLlm).mockResolvedValue(insightResponse)
+    echo.state.draft = '我很有成就感'
+
+    await echo.send()
+    await echo.generateInsight()
+
+    expect(echo.state.insight).not.toBeNull()
+
+    echo.state.draft = '我還想補充新的對話'
+    await echo.send()
+
+    expect(echo.state.insight).toBeNull()
+    expect(echo.allEvents.value).toHaveLength(0)
+
+    await echo.generateInsight()
+
+    expect(generateInsightLlm).toHaveBeenCalledTimes(2)
+    expect(echo.state.insight?.title).toBe('需求探索成功')
+  })
+
+  it('automatically generates an Echo Card on the sixteenth user turn', async () => {
+    echo.state.messages = Array.from({ length: 30 }, (_, index) => ({
+      role: (index % 2 === 0 ? 'user' : 'echo') as 'user' | 'echo',
+      text: `第 ${index + 1} 則`,
+    }))
+    echo.state.draft = '第十六輪內容'
+    vi.mocked(generateInsightLlm).mockResolvedValue(insightResponse)
+
+    await echo.send()
+
+    expect(chatLlm).not.toHaveBeenCalled()
+    expect(generateInsightLlm).toHaveBeenCalledOnce()
+    expect(echo.state.messages[echo.state.messages.length - 1]).toEqual({
+      role: 'user',
+      text: '第十六輪內容',
+    })
+    expect(echo.state.insight?.title).toBe('需求探索成功')
   })
 
   it('clears all generated data without restoring seed events', async () => {

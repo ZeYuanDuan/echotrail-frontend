@@ -9,10 +9,22 @@ export interface TrailEvent {
   dislike: string
   value: string
   quote: string
-  signals: InsightSignal[]
-  dashboard: DashboardProfile
+  careerAnchorType: CareerAnchorType
+  signals?: InsightSignal[]
+  dashboard?: DashboardProfile
   isNew?: boolean
 }
+
+export type CareerAnchorType =
+  | '專家達人'
+  | '專業經理人'
+  | '自主工作者'
+  | '安穩可靠者'
+  | '創造者'
+  | '俠客奉獻者'
+  | '挑戰者'
+  | '樂活族'
+  | '無法明確歸類'
 
 export type InsightFramework = 'riasec' | 'disc' | 'schein'
 

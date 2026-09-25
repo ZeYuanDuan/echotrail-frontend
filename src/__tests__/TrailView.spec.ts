@@ -21,6 +21,7 @@ function makeEvent(id: number, title: string, date: string): TrailEvent {
     dislike: '不喜歡停滯',
     value: '持續累積真實經驗',
     quote: `${title}的原話`,
+    careerAnchorType: '專家達人',
     signals: [],
     dashboard: {
       persona: { headline: '', summaries: [], quote: '' },

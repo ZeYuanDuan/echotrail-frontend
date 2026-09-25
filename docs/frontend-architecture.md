@@ -58,17 +58,17 @@ flowchart TD
 | `state.sourceId` | 當前已儲存卡片的事件 ID |
 | `status` | busy、storageError、error |
 | `allEvents` | 依 ID 排序的已儲存事件 |
-| `saved` | 當前卡片是否已儲存 |
+| `saved`、`dashboardReady` | 當前卡片是否已儲存，以及是否已完成 Dashboard 全量分析 |
 
-每筆 `TrailEvent` 都必須同時包含 Gemini 回傳的 `dashboard` 與 `signals`，因此 Dashboard 不提供固定 fallback。無資料時由頁面顯示空狀態。
+`TrailEvent` 產卡時先具備 Echo Card 與職涯錨分類；`dashboard` 與 `signals` 會在使用者點擊更新後才加入。Dashboard 不提供固定 fallback，尚未分析時由頁面顯示空狀態。
 
 ## 5. 主要資料流
 
 1. `send()` 將目前逐字稿交給 `chatLlm()`，前端的 `echo` 角色在 API 邊界轉成 `model`。
 2. `POST /api/llm/chat` 成功後加入 Gemini 回覆；失敗時移除本次訊息並恢復草稿。
-3. `generateInsight()` 呼叫 `POST /api/llm/insight`，取得 Echo Card、Dashboard profile 與 grounded signals。
-4. `saveInsight()` 儲存事件；同一段對話再次產卡時會更新原事件。
-5. Dashboard 聚合所有事件的 Gemini 結果，My Trail 顯示同一份事件集合。
+3. `generateInsight()` 呼叫 `POST /api/llm/insight`，只取得 Echo Card 與本次事件的職涯錨分類；送出第 16 輪時會自動觸發相同流程。
+4. Echo Card 先儲存至本機事件集合；同一段對話再次產卡時會更新原事件。
+5. 使用者點擊更新後，`updateDashboard()` 把全部 Echo Card 送至 `POST /api/llm/dashboard`，全量重算 Dashboard profile 與 grounded signals。
 
 送出與產卡期間以 `busy` 防止重複操作。單則訊息最多 2,000 字，每段對話最多 16 輪。
 
@@ -82,7 +82,8 @@ flowchart TD
 | --- | --- |
 | 共用 base URL | `VITE_API_BASE_URL`，預設 `/api` |
 | 對話 API | `POST /llm/chat`，逾時 30 秒 |
-| 產卡 API | `POST /llm/insight`，逾時 60 秒 |
+| 產卡 API | `POST /llm/insight`，只回傳 Echo Card 與職涯錨分類，逾時 60 秒 |
+| Dashboard API | `POST /llm/dashboard`，以全部 Echo Card 全量重算，逾時 60 秒 |
 | 本機代理 | Vite 將 `/api` 代理至 `echotrail-backend` |
 | 正式部署 | Firebase Hosting 將 `/api/**` 轉送至 Cloud Run |
 
