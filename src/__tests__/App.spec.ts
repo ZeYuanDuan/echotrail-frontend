@@ -2,17 +2,18 @@ import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { routes } from '@/router'
+import { useIdentity } from '@/composables/useIdentity'
 import App from '../App.vue'
 
 describe('Application routing', () => {
-  it('renders the home screen when opening an unknown URL', async () => {
+  it('redirects an unknown URL to the home route and gates it by nickname', async () => {
+    useIdentity().switchUser()
     const router = createRouter({ history: createMemoryHistory(), routes })
     await router.push('/unknown-page')
     await router.isReady()
-
     const wrapper = mount(App, { global: { plugins: [router] } })
     expect(router.currentRoute.value.path).toBe('/')
-    expect(wrapper.find('h1').text()).toBe('👋 Hi Welcome to EchoTrail!')
+    expect(wrapper.text()).toContain('歡迎來到 EchoTrail')
     wrapper.unmount()
   })
 })

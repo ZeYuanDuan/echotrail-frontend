@@ -1,23 +1,28 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { nextTick, ref, watch } from 'vue'
+import axios from 'axios'
 import { useRouter } from 'vue-router'
 import EchoCard from '@/components/echo/EchoCard.vue'
-import { Button } from '@/components/ui/button'
-import { demoConversations, suggestions, type DemoConversation } from '@/mocks/echo'
 import { useEcho } from '@/composables/useEcho'
-const { state, status, saved, live, toggleLive, send, generateInsight, saveInsight } = useEcho()
+import { useDashboard } from '@/composables/useDashboard'
+import { useIdentity } from '@/composables/useIdentity'
+import { suggestions } from '@/mocks/echo'
+
+const { user } = useIdentity()
+const {
+  state,
+  status,
+  confirmedEvent,
+  send,
+  generateInsight,
+  confirmInsight,
+  continueConversation,
+  editCard,
+} = useEcho()
+const { rebuild } = useDashboard()
 const router = useRouter()
 const bottom = ref<HTMLElement | null>(null)
 const input = ref<HTMLTextAreaElement | null>(null)
-const showSources = ref(false)
-const sourceNote = ref('')
-const selectedDemoId = ref('cross-team-success')
-const demoTurn = computed(() => state.messages.filter((message) => message.role === 'user').length)
-const selectedDemo = computed(
-  () =>
-    demoConversations.find((conversation) => conversation.id === selectedDemoId.value) ??
-    demoConversations[0]!,
-)
 watch(
   () => [state.messages.length, state.insight, status.busy],
   async () => {
@@ -26,18 +31,7 @@ watch(
   },
 )
 function choose(index: number) {
-  state.draft = suggestions[index]!.text
-  sourceNote.value = '已帶入示範文字，可替換成你想聊的內容。'
-  showSources.value = false
-  input.value?.focus()
-}
-function chooseDemoTurn(conversation: DemoConversation) {
-  if (demoTurn.value > 0 && conversation.id !== selectedDemoId.value) return
-  selectedDemoId.value = conversation.id
-  const text = conversation.turns[demoTurn.value]
-  if (!text) return
-  state.draft = text
-  sourceNote.value = `已帶入「${conversation.label}」第 ${demoTurn.value + 1} 輪，送出後會取得真實模型回覆。`
+  state.draft = suggestions[index]?.text ?? ''
   input.value?.focus()
 }
 function onEnter(event: KeyboardEvent) {
@@ -47,35 +41,33 @@ function onEnter(event: KeyboardEvent) {
   }
 }
 async function updateDashboard() {
-  await saveInsight()
-  await router.push('/dashboard')
+  const identity = user.value?.id
+  if (!identity || !confirmedEvent.value || status.busy) return
+  status.busy = true
+  status.error = ''
+  try {
+    await rebuild(identity)
+    if (user.value?.id === identity) await router.push('/dashboard')
+  } catch (caught) {
+    if (user.value?.id === identity) {
+      const data: unknown = axios.isAxiosError(caught) ? caught.response?.data : null
+      status.error =
+        data && typeof data === 'object' && 'error' in data && typeof data.error === 'string'
+          ? data.error
+          : 'Dashboard 更新失敗，請重試。'
+    }
+  } finally {
+    if (user.value?.id === identity) status.busy = false
+  }
 }
 </script>
 <template>
   <div class="chat-wrap">
-    <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-      <span class="text-sm text-muted-foreground" role="status">{{
-        live ? 'Gemini 即時對話' : '假資料體驗'
-      }}</span>
-      <Button
-        type="button"
-        variant="outline"
-        :aria-pressed="live"
-        :disabled="status.busy"
-        @click="toggleLive"
-      >
-        {{ live ? '切回假資料' : '切換 Gemini 對話' }}
-      </Button>
-    </div>
-    <p v-if="live" class="mb-4 text-sm text-muted-foreground">
-      訊息會送到 EchoTrail 後端，再由服務端呼叫
-      Gemini。測試請使用虛構內容；產卡後可追溯圖表引用的原句。
-    </p>
     <h1 v-if="!state.messages.length" class="wtitle">👋 Hi Welcome to EchoTrail!</h1>
     <template v-else>
       <div class="chat-heading">
         <h1>與艾可聊聊</h1>
-        <span class="demo-label">{{ live ? 'Gemini' : '模擬對話' }}</span>
+        <span class="demo-label">Gemini</span>
       </div>
       <div aria-live="polite" class="chat-messages">
         <div
@@ -86,7 +78,7 @@ async function updateDashboard() {
           {{ message.text }}
         </div>
         <p v-if="status.busy" class="thinking" role="status">
-          {{ state.insight ? '正在更新 Dashboard…' : '艾可整理中…' }}
+          {{ state.insight ? '處理卡片中…' : '艾可整理中…' }}
         </p>
       </div>
       <div v-if="!state.insight" class="insight-btn-wrap">
@@ -94,13 +86,48 @@ async function updateDashboard() {
           ✨ Generate Insight
         </button>
       </div>
-      <EchoCard v-if="state.insight" :event="state.insight">
-        <p class="echo-footer">已完成本次 Echo Card，可將 grounded 訊號加入 Dashboard。</p>
-        <p v-if="live" class="demo-note">卡片與圖表訊號由後端生成；所有引證已通過逐字稿比對。</p>
-        <p v-else class="demo-note">目前為固定示範內容。</p>
-        <button class="update-btn" :disabled="status.busy" @click="updateDashboard">
-          {{ saved ? '已更新 · 查看 Dashboard' : '更新至 Dashboard' }}
+      <EchoCard
+        v-if="state.insight"
+        :card="state.insight.card"
+        :editable="!confirmedEvent && !status.busy"
+        label="Echo Card 預覽"
+        @edit="editCard"
+      >
+        <p class="echo-footer">
+          {{
+            confirmedEvent
+              ? '已確認，My Trail 現在可以讀到這張卡片。'
+              : '確認後會保存這張卡片，Dashboard 仍需另行更新。'
+          }}
+        </p>
+        <button
+          v-if="!confirmedEvent"
+          data-test="confirm-card"
+          class="update-btn"
+          :disabled="status.busy"
+          @click="confirmInsight"
+        >
+          確認 Echo Card
         </button>
+        <div v-else class="flex flex-wrap gap-3">
+          <button
+            data-test="update-dashboard"
+            class="update-btn"
+            :disabled="status.busy"
+            @click="updateDashboard"
+          >
+            更新至 Dashboard
+          </button>
+          <button
+            data-test="continue-conversation"
+            type="button"
+            class="toggle-btn"
+            :disabled="status.busy"
+            @click="continueConversation"
+          >
+            繼續此對話
+          </button>
+        </div>
       </EchoCard>
     </template>
     <p v-if="status.error" role="alert" class="mb-3 text-sm text-destructive">{{ status.error }}</p>
@@ -112,85 +139,43 @@ async function updateDashboard() {
         v-model="state.draft"
         class="input-text"
         rows="2"
-        :maxlength="live ? 2000 : undefined"
+        maxlength="2000"
         placeholder="和我聊聊你的職涯經驗或近期發生的事吧"
-        :disabled="status.busy"
+        :disabled="status.busy || !!state.insight"
         @keydown.enter="onEnter"
       ></textarea>
       <div class="input-controls">
         <button
           type="button"
           class="icon-btn"
-          aria-label="加入示範內容"
-          :aria-expanded="showSources"
-          :disabled="status.busy"
-          @click="showSources = !showSources"
+          aria-label="帶入聊天靈感"
+          :disabled="status.busy || !!state.insight"
+          @click="choose(0)"
         >
           ＋
         </button>
-        <div class="icon-group">
-          <button
-            type="button"
-            class="icon-btn"
-            aria-label="帶入聊天靈感"
-            :disabled="status.busy"
-            @click="choose(2)"
-          >
-            💬</button
-          ><button
-            class="send-btn"
-            aria-label="送出訊息"
-            :disabled="!state.draft.trim() || status.busy"
-          >
-            ↑
-          </button>
-        </div>
-      </div>
-      <div v-if="showSources" class="source-menu">
         <button
-          v-for="(suggestion, i) in suggestions"
-          :key="suggestion.title"
-          type="button"
-          @click="choose(i)"
+          class="send-btn"
+          aria-label="送出訊息"
+          :disabled="!state.draft.trim() || status.busy || !!state.insight"
         >
-          {{ suggestion.icon }} {{ suggestion.title }}示範
+          ↑
         </button>
       </div>
-      <div v-if="live && demoTurn < selectedDemo.turns.length" class="script-buttons">
-        <button
-          v-for="conversation in demoConversations"
-          :key="conversation.id"
-          type="button"
-          class="script-btn"
-          :class="{ active: conversation.id === selectedDemoId }"
-          :aria-pressed="conversation.id === selectedDemoId"
-          :disabled="status.busy || (demoTurn > 0 && conversation.id !== selectedDemoId)"
-          @click="chooseDemoTurn(conversation)"
-        >
-          <span>{{ conversation.label }} · 第 {{ demoTurn + 1 }} 輪</span>
-          <small>{{ conversation.description }}</small>
-        </button>
-      </div>
-      <p v-else-if="live && demoTurn >= selectedDemo.turns.length" class="demo-note">
-        三輪固定腳本已完成，可以產生洞察。
-      </p>
-      <p v-if="sourceNote" class="demo-note" role="status">{{ sourceNote }}</p>
     </form>
     <div v-if="!state.messages.length" class="suggest-row">
       <button
-        v-for="(suggestion, i) in suggestions"
+        v-for="(suggestion, index) in suggestions"
         :key="suggestion.title"
         class="suggest-card"
-        @click="choose(i)"
+        @click="choose(index)"
       >
         <div class="emoji">{{ suggestion.icon }}</div>
         {{ suggestion.title }}
         <div class="sub">{{ suggestion.subtitle }}</div>
       </button>
     </div>
-    <p class="demo-note">
-      {{ live ? 'Gemini 即時回覆' : '假資料體驗 · 不需登入' }} · Enter 送出，Shift + Enter 換行
-    </p>
+    <p class="demo-note">Gemini 即時回覆 · Enter 送出，Shift + Enter 換行</p>
     <div ref="bottom"></div>
   </div>
 </template>
