@@ -39,7 +39,7 @@ const selected = computed(() => allEvents.value.find((event) => event.id === sel
       <h2>還沒有留下事件</h2>
       <p>完成一段對話並更新至 Dashboard，第一筆事件就會出現在這裡。</p>
       <div class="mt-6">
-        <Button as-child size="lg">
+        <Button as-child variant="echo" size="lg">
           <RouterLink to="/">開始聊聊</RouterLink>
         </Button>
       </div>

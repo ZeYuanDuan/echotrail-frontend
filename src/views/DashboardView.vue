@@ -162,7 +162,7 @@ const northStarAxes = computed(() => {
       <h2>第一個洞察還在等你</h2>
       <p>完成一段 Gemini 對話、產生 Echo Card，再按「更新至 Dashboard」。</p>
       <div class="mt-6">
-        <Button as-child size="lg">
+        <Button as-child variant="echo" size="lg">
           <RouterLink to="/">回到對話</RouterLink>
         </Button>
       </div>

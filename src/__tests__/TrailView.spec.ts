@@ -82,6 +82,8 @@ describe('My Trail', () => {
 
     expect(trailAction.text()).toBe('開始聊聊')
     expect(dashboardAction.text()).toBe('回到對話')
+    expect(trailAction.attributes('data-variant')).toBe('echo')
+    expect(dashboardAction.attributes('data-variant')).toBe('echo')
     expect(trailAction.attributes('data-size')).toBe('lg')
     expect(dashboardAction.attributes('data-size')).toBe('lg')
     expect(trailAction.classes()).toEqual(dashboardAction.classes())
