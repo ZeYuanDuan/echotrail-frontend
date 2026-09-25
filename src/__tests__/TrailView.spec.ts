@@ -100,6 +100,8 @@ describe('My Trail', () => {
 
     expect(eventButtons).toHaveLength(2)
     expect(wrapper.text()).toContain('所有事件 · 共 2 筆')
+    expect(wrapper.text()).not.toContain('已整理事件')
+    expect(wrapper.text()).not.toContain('資料來源')
     expect(eventButtons[1]?.attributes('aria-pressed')).toBe('true')
     expect(wrapper.find('.echo-card').text()).toContain('事件 2：第二次真實事件')
     expect(wrapper.text()).not.toContain('回顧／重新討論')
@@ -108,6 +110,26 @@ describe('My Trail', () => {
 
     expect(eventButtons[0]!.attributes('aria-pressed')).toBe('true')
     expect(wrapper.find('.echo-card').text()).toContain('事件 1：第一次真實事件')
+  })
+
+  it('removes and persists the NEW badge after an event is clicked', async () => {
+    echo.state.events = [
+      { ...makeEvent(1, '第一筆事件', '9/20'), isNew: true },
+      { ...makeEvent(2, '最新事件', '9/21'), isNew: true },
+    ]
+
+    const wrapper = await mountTrail()
+    const eventButtons = wrapper.findAll('[data-slot="selection-button"]')
+
+    expect(eventButtons[0]!.text()).toContain('NEW')
+    expect(eventButtons[1]!.text()).toContain('NEW')
+
+    await eventButtons[0]!.trigger('click')
+
+    expect(eventButtons[0]!.text()).not.toContain('NEW')
+    expect(eventButtons[1]!.text()).toContain('NEW')
+    expect(echo.state.events[0]?.isNew).toBe(false)
+    expect(JSON.parse(localStorage.getItem('echotrail-v1')!).events[0].isNew).toBe(false)
   })
 
   it('shares the selection button component with My Dashboard', async () => {

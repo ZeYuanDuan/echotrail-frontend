@@ -167,6 +167,14 @@ function newChat() {
   state.sourceId = null
 }
 
+function markEventViewed(id: number) {
+  const event = state.events.find((item) => item.id === id)
+  if (!event?.isNew) return
+
+  event.isNew = false
+  if (state.insight?.id === id) state.insight.isNew = false
+}
+
 async function send() {
   const text = state.draft.trim()
   if (!text || status.busy) return
@@ -262,6 +270,7 @@ export function useEcho() {
     allEvents,
     saved,
     newChat,
+    markEventViewed,
     send,
     generateInsight,
     saveInsight,

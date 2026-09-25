@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { SelectionButton } from '@/components/ui/selection-button'
 import { useEcho } from '@/composables/useEcho'
 
-const { allEvents } = useEcho()
+const { allEvents, markEventViewed } = useEcho()
 const selectedId = ref<number>()
 
 watch(
@@ -19,6 +19,11 @@ watch(
 )
 
 const selected = computed(() => allEvents.value.find((event) => event.id === selectedId.value))
+
+function selectEvent(id: number) {
+  selectedId.value = id
+  markEventViewed(id)
+}
 </script>
 
 <template>
@@ -55,7 +60,7 @@ const selected = computed(() => allEvents.value.find((event) => event.id === sel
             :meta="event.date"
             :badge="event.isNew ? 'NEW' : undefined"
             stretch
-            @click="selectedId = event.id"
+            @click="selectEvent(event.id)"
           >
             事件 {{ event.id }}：{{ event.title }}
           </SelectionButton>
