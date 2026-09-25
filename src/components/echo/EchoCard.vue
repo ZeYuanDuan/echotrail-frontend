@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { TrailEvent } from '@/mocks/echo'
+import type { TrailEvent } from '@/types/echo'
 defineProps<{ event: TrailEvent }>()
 </script>
 <template>

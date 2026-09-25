@@ -2,8 +2,10 @@
 import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import CareerAnchorRadar from '@/components/dashboard/CareerAnchorRadar.vue'
+import { Button } from '@/components/ui/button'
+import { SelectionButton } from '@/components/ui/selection-button'
 import { useEcho } from '@/composables/useEcho'
-import type { DashboardProfile, InsightFramework, TrailEvent } from '@/mocks/echo'
+import type { InsightFramework } from '@/types/echo'
 
 const route = useRoute()
 const { allEvents } = useEcho()
@@ -40,49 +42,10 @@ const frameworkMeta: Record<
   },
 }
 
-const fallbackProfile = (event: TrailEvent): DashboardProfile => ({
-  persona: {
-    headline: '正在用具體經驗整理自己職涯方向的實踐者',
-    summaries: [event.like, event.value, event.dislike],
-    quote: event.quote,
-  },
-  anchor: {
-    primary: '專家達人',
-    ability: ['拆解事件裡的關鍵問題', '從經驗中整理可重複的方法'],
-    motivation: [event.like, '持續累積能看見的成長'],
-    values: [event.value, event.dislike],
-  },
-  keywords: [
-    { text: '成長', weight: 5 },
-    { text: '判斷', weight: 4 },
-    { text: '方法', weight: 4 },
-    { text: '工作環境', weight: 3 },
-    { text: '自我覺察', weight: 3 },
-  ],
-  patterns: [
-    { title: '遇到不確定時，會先釐清問題再決定下一步', evidenceQuote: event.quote },
-    { title: '會把情緒整理成可採取行動的判斷', evidenceQuote: event.quote },
-  ],
-  northStar: {
-    primaryAnchor: '專家達人',
-    tagline: '用專業判斷看清問題，讓每一步都累積成長',
-    desires: ['解決真正重要的問題', '讓專業能力持續被驗證'],
-    bottomLine: event.dislike,
-    nextSteps: ['記錄更多能代表成長的事件', '把有效方法帶進更早期的工作規劃'],
-  },
-})
-
-const analyzedEvents = computed(() =>
-  allEvents.value.filter((event) => event.signals?.length || event.dashboard),
-)
+const analyzedEvents = computed(() => allEvents.value)
 const latestEvent = computed(() => analyzedEvents.value[analyzedEvents.value.length - 1])
-const profile = computed(() => {
-  const event = latestEvent.value
-  return event ? (event.dashboard ?? fallbackProfile(event)) : null
-})
-const dashboardProfiles = computed(() =>
-  analyzedEvents.value.map((event) => event.dashboard ?? fallbackProfile(event)),
-)
+const profile = computed(() => latestEvent.value?.dashboard ?? null)
+const dashboardProfiles = computed(() => analyzedEvents.value.map((event) => event.dashboard))
 const anchorSummary = computed(() => {
   const unique = (items: string[]) => [...new Set(items)].slice(0, 3)
   const primaryCounts = new Map<string, number>()
@@ -102,7 +65,7 @@ const signals = computed(() => analyzedEvents.value.flatMap((event) => event.sig
 const keywords = computed(() => {
   const totals = new Map<string, number>()
   analyzedEvents.value.forEach((event) => {
-    const current = event.dashboard ?? fallbackProfile(event)
+    const current = event.dashboard
     current.keywords.forEach((keyword) => {
       totals.set(keyword.text, (totals.get(keyword.text) ?? 0) + keyword.weight)
     })
@@ -116,7 +79,7 @@ const keywords = computed(() => {
 const patterns = computed(() => {
   const seen = new Set<string>()
   return analyzedEvents.value
-    .flatMap((event) => (event.dashboard ?? fallbackProfile(event)).patterns)
+    .flatMap((event) => event.dashboard.patterns)
     .filter((pattern) => {
       if (seen.has(pattern.title)) return false
       seen.add(pattern.title)
@@ -198,7 +161,11 @@ const northStarAxes = computed(() => {
       <div class="empty-orbit" aria-hidden="true"></div>
       <h2>第一個洞察還在等你</h2>
       <p>完成一段 Gemini 對話、產生 Echo Card，再按「更新至 Dashboard」。</p>
-      <RouterLink to="/" class="dashboard-link">回到對話</RouterLink>
+      <div class="mt-6">
+        <Button as-child size="lg">
+          <RouterLink to="/">回到對話</RouterLink>
+        </Button>
+      </div>
     </section>
 
     <template v-else>
@@ -380,16 +347,14 @@ const northStarAxes = computed(() => {
 
       <template v-else>
         <nav class="framework-tabs" aria-label="選擇分析框架">
-          <button
+          <SelectionButton
             v-for="(meta, framework) in frameworkMeta"
             :key="framework"
-            type="button"
-            :class="{ active: selectedFramework === framework }"
-            :aria-pressed="selectedFramework === framework"
+            :selected="selectedFramework === framework"
             @click="selectedFramework = framework"
           >
             {{ meta.title }}
-          </button>
+          </SelectionButton>
         </nav>
         <section class="framework-stage" :aria-labelledby="`${selectedFramework}-title`">
           <div class="chart-panel">

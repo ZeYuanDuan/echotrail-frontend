@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { useEcho } from '@/composables/useEcho'
-const { updated, status, newChat, reset } = useEcho()
+const { status, newChat, reset } = useEcho()
 const router = useRouter()
 const route = useRoute()
 const resetDialog = ref<HTMLDialogElement | null>(null)
@@ -19,14 +19,14 @@ function start() {
   newChat()
   void router.push('/')
 }
-function resetDemo() {
+function clearData() {
   reset()
   resetDialog.value?.close()
   void router.push('/')
 }
 </script>
 <template>
-  <div class="echo-app" :class="{ updated }">
+  <div class="echo-app">
     <aside class="sidebar">
       <RouterLink to="/" class="logo">🤍 EchoTrail</RouterLink>
       <nav aria-label="主要導覽">
@@ -50,8 +50,8 @@ function resetDemo() {
         </div>
       </nav>
       <div class="sidebar-footer">
-        <span class="demo-label">DEMO · 假資料版本</span
-        ><button :disabled="status.busy" @click="resetDialog?.showModal()">重設示範資料</button>
+        <span>資料儲存在這台裝置</span
+        ><button :disabled="status.busy" @click="resetDialog?.showModal()">清除所有資料</button>
       </div>
     </aside>
     <main class="main">
@@ -61,11 +61,11 @@ function resetDemo() {
       <RouterView />
     </main>
     <dialog ref="resetDialog" class="details-dialog reset-dialog" aria-labelledby="reset-title">
-      <h2 id="reset-title">重新開始示範？</h2>
-      <p>會清除這個瀏覽器新增的對話與 Echo Card，恢復原本的六筆示範事件。</p>
+      <h2 id="reset-title">清除所有資料？</h2>
+      <p>會清除這個瀏覽器儲存的對話與 Echo Card，且無法復原。</p>
       <div class="dialog-actions">
         <button class="toggle-btn" @click="resetDialog?.close()">取消</button
-        ><button class="update-btn" @click="resetDemo">重設資料</button>
+        ><button class="update-btn" @click="clearData">確認清除</button>
       </div>
     </dialog>
   </div>

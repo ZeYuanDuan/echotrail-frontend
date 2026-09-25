@@ -46,7 +46,7 @@ npm run preview     # 預覽打包結果
 
 ### Gemini 本機連線測試
 
-Gemini 金鑰與呼叫已移至 `echotrail-backend`。先依 backend README 設定 `.env.local` 並在 `127.0.0.1:8080` 啟動服務，再執行本 repo 的 `npm run dev`。聊天頁可切換 Gemini 多輪對話、使用三輪固定腳本，並產生真實 Echo Card 與可追溯的 Dashboard 訊號。完整契約見 [Gemini 串接說明](docs/specs/gemini-connection.md)。
+Gemini 金鑰與呼叫已移至 `echotrail-backend`。先依 backend README 設定 `.env.local` 並在 `127.0.0.1:8080` 啟動服務，再執行本 repo 的 `npm run dev`。聊天頁預設使用 Gemini 多輪對話，也可使用三組固定的三輪情境腳本，並產生 Echo Card 與可追溯的 Dashboard 訊號。完整契約見 [Gemini 串接說明](docs/specs/gemini-connection.md)。
 
 - `src/lib/api.ts` 提供共用 Axios instance，透過 `VITE_API_BASE_URL` 設定後端網址，預設 `/api`。
 - 本機串接獨立後端時，請設定後端網址並由後端允許 CORS，或另加 Vite proxy。
@@ -54,21 +54,20 @@ Gemini 金鑰與呼叫已移至 `echotrail-backend`。先依 backend README 設�
 - shadcn-vue 元件放在 `src/components/ui`，用 `npx shadcn-vue@latest add <元件名稱>` 按需加入。
 - 部署 Vue Router history 模式時，主機需將前端路徑 fallback 到 `index.html`；API 路徑應另行處理。
 
-## 假資料流程
+## Gemini 對話流程
 
-目前可直接以 `npm run dev` 展示完整前端流程，無須啟動後端或設定 API 金鑰。
+完整流程需要先啟動 `echotrail-backend` 並設定 Gemini API 金鑰。
 
-1. 首頁輸入訊息，或點日記／履歷／隨心聊聊卡片帶入示範文字。
-2. 送出後取得簡易 mock 回覆，可持續對話；Enter 送出、Shift + Enter 換行。
-3. 點 `Generate Insight` 產生 Echo Card，再點「更新至 Dashboard」。
-4. Dashboard 依已儲存事件的 grounded signals 聚合 RIASEC、DISC 與職涯錨點，並可追溯每筆分數的原句證據。完整範圍見 [Dashboard 規格](docs/specs/dashboard.md)。
-5. My Trail 預設顯示事件 6 詳情；右上角獨立的 V2 按鈕可展開季度摘要、事件切換與重新討論。完整範圍見 [My Trail 規格](docs/specs/my-trail.md)。
-6. 「＋ New」開始新對話；「重設示範資料」確認後恢復初始六筆事件。
+1. 首頁自行輸入訊息，或從「規格被簡化」、「單次疏漏」、「跨團隊成功」選擇一組三輪情境。
+2. 每一輪都由 Gemini 即時回覆；Enter 送出、Shift + Enter 換行。
+3. 點 `Generate Insight` 取得 Gemini 產生的 Echo Card，再點「更新至 Dashboard」。
+4. Dashboard 聚合 grounded signals，並保留每筆分數的原句證據。
+5. My Trail 顯示所有已儲存事件，並預設選取最新一筆。
+6. 「＋ New」開始新對話；「清除所有資料」會移除這個瀏覽器內的對話與 Echo Card。
 
-資料存於瀏覽器 localStorage（`echotrail-demo-v1`），重新整理會保留；儲存不可用時仍可在當次頁面操作。
-歷史事件與假資料模式的 Echo Card 使用固定示範資料；假資料產卡附上固定圖表訊號供離線展示。Gemini 模式的卡片與圖表訊號則由 backend 根據對話產生。重新討論會更新原事件，不新增重複事件。
-履歷與隨心聊聊入口僅帶入示範文字，沒有檔案解析、真實 AI 或後端請求。
+資料存於瀏覽器 localStorage（`echotrail-v1`），重新整理後仍會保留。正式畫面沒有內建歷史事件、mock 回覆、固定 Echo Card 或 Dashboard fallback；三輪情境只提供輸入腳本，回覆與分析仍由 Gemini 產生。
 
-- `src/mocks/echo.ts`：歷史事件、示範輸入與 mock 回覆。
-- `src/composables/useEcho.ts`：對話、產生／儲存卡片、本機持久化與重設。
+- `src/data/conversation-scenarios.ts`：三組固定對話情境。
+- `src/types/echo.ts`：對話、Echo Card 與 Dashboard 資料型別。
+- `src/composables/useEcho.ts`：Gemini 對話、產生／儲存卡片與本機持久化。
 - `/`、`/trail`、`/dashboard`：聊天、職涯軌跡、分析儀表板。

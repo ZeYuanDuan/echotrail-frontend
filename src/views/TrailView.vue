@@ -1,147 +1,80 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import EchoCard from '@/components/echo/EchoCard.vue'
 import { Button } from '@/components/ui/button'
+import { SelectionButton } from '@/components/ui/selection-button'
 import { useEcho } from '@/composables/useEcho'
-const { allEvents, state, discuss, status } = useEcho()
-const router = useRouter()
-const showV2 = ref(false)
-const v1Event = computed(() => state.events.slice(-1)[0])
-const quarter = ref(3)
-const year = ref(2026)
-const yearOpen = ref(true)
-const events = computed(() =>
-  year.value === 2026 ? allEvents.value.filter((e) => e.quarter === quarter.value) : [],
+
+const { allEvents } = useEcho()
+const selectedId = ref<number>()
+
+watch(
+  allEvents,
+  (events) => {
+    if (!events.some((event) => event.id === selectedId.value)) {
+      selectedId.value = events[events.length - 1]?.id
+    }
+  },
+  { immediate: true },
 )
-const selectedId = ref<number | undefined>(6)
-watch(events, () => {
-  selectedId.value = events.value.slice(-1)[0]?.id
-})
-const selected = computed(() => events.value.find((e) => e.id === selectedId.value))
-const moods = computed(() =>
-  quarter.value === 2
-    ? [
-        { name: '四月', score: 6 },
-        { name: '五月', score: 8 },
-        { name: '六月', score: 3 },
-      ]
-    : [
-        { name: '七月', score: 4 },
-        { name: '八月', score: null },
-        { name: '九月', score: null },
-      ],
-)
-function toggleYear() {
-  year.value = 2026
-  yearOpen.value = !yearOpen.value
-}
-function selectQuarter(q: number) {
-  quarter.value = q
-  year.value = 2026
-}
-function review() {
-  if (selected.value) {
-    discuss(selected.value)
-    void router.push('/')
-  }
-}
+
+const selected = computed(() => allEvents.value.find((event) => event.id === selectedId.value))
 </script>
+
 <template>
   <div class="dashboard-content">
-    <header class="flex flex-wrap items-start justify-between gap-3">
+    <header>
       <h1 class="h1">My Trail</h1>
-      <Button
-        variant="outline"
-        type="button"
-        :aria-expanded="showV2"
-        aria-controls="trail-v2"
-        @click="showV2 = !showV2"
-      >
-        {{ showV2 ? '收起 V2 假資料' : '查看 V2 假資料' }}
-      </Button>
+      <p class="mt-2 text-sm text-muted-foreground">
+        {{
+          allEvents.length
+            ? `所有事件 · 共 ${allEvents.length} 筆`
+            : '每一筆足跡都來自完成的 Gemini 對話。'
+        }}
+      </p>
     </header>
-    <EchoCard v-if="!showV2 && v1Event" :event="v1Event" />
-    <section v-else-if="!showV2" class="card empty-state">
+
+    <section v-if="!allEvents.length" class="card empty-state">
       <div>🌱</div>
       <h2>還沒有留下事件</h2>
       <p>完成一段對話並更新至 Dashboard，第一筆事件就會出現在這裡。</p>
-      <RouterLink to="/" class="update-btn">開始聊聊</RouterLink>
+      <div class="mt-6">
+        <Button as-child size="lg">
+          <RouterLink to="/">開始聊聊</RouterLink>
+        </Button>
+      </div>
     </section>
-    <div id="trail-v2" v-show="showV2" class="trail-layout" style="padding: 0">
-      <aside class="trail-side">
-        <button class="year-toggle" :aria-expanded="yearOpen" @click="toggleYear">
-          {{ yearOpen ? '▼' : '▶' }} 2026
-        </button>
-        <ul v-if="yearOpen" class="q-list">
-          <li v-for="q in 4" :key="q">
-            <button
-              :class="year === 2026 && quarter === q ? 'q-selected' : 'q-clickable'"
-              :aria-pressed="year === 2026 && quarter === q"
-              @click="selectQuarter(q)"
-            >
-              ▶ Q{{ q }}
-            </button>
-          </li>
-        </ul>
-        <button class="year-toggle-old" @click="year = 2025">▶ 2025</button>
-      </aside>
-      <div class="trail-content">
-        <p class="demo-note">{{ year }} 年 Q{{ quarter }} · 職涯軌跡</p>
-        <div v-if="events.length" class="card">
-          <div class="trail-summary-row">
-            <div class="ts-card">
-              <h2>本季共鳴次數</h2>
-              <div class="ts-num">{{ events.length }}</div>
-            </div>
-            <div class="ts-card">
-              <h2>本季的我</h2>
-              <div class="ts-kw">
-                <span>• 比較焦慮</span><span>• 自我懷疑</span
-                ><span>• {{ quarter === 2 ? '自我覺察' : '過度分析' }}</span>
-              </div>
-            </div>
-            <div class="ts-card">
-              <h2>本季心情</h2>
-              <div class="mood-legend-row"><span>😢</span><span>😐</span><span>😄</span></div>
-              <div v-for="mood in moods" :key="mood.name" class="mood-item">
-                <span class="mood-name">{{ mood.name }}</span
-                ><template v-if="mood.score !== null"
-                  ><div class="mood-bar-wrap">
-                    <div class="mood-bar-bg" :style="{ width: `${mood.score * 10}%` }"></div>
-                  </div>
-                  <span class="mood-score">{{ mood.score }}分</span></template
-                ><span v-else class="mood-empty">無內容</span>
-              </div>
-            </div>
+
+    <div v-else class="trail-content trail-content-generated">
+      <div class="card">
+        <div class="trail-summary-row">
+          <div class="ts-card">
+            <h2>已整理事件</h2>
+            <div class="ts-num">{{ allEvents.length }}</div>
+          </div>
+          <div class="ts-card trail-summary-copy">
+            <h2>資料來源</h2>
+            <p>Echo Card、洞察與引用原句均由你的 Gemini 對話產生。</p>
           </div>
         </div>
-        <div v-if="events.length" class="card">
-          <div class="event-cards-row">
-            <button
-              v-for="event in events"
-              :key="event.id"
-              class="event-card2"
-              :class="{ selected: selectedId === event.id }"
-              :aria-pressed="selectedId === event.id"
-              @click="selectedId = event.id"
-            >
-              <span class="timeline-dot"></span>事件 {{ event.id }}：{{ event.title
-              }}<span class="ec2-date">{{ event.date }}</span
-              ><span v-if="event.isNew" class="new-tag">NEW</span>
-            </button>
-          </div>
-          <div v-if="selected" class="event-detail-box">
-            <button class="review-btn" :disabled="status.busy" @click="review">
-              回顧／重新討論 ＞</button
-            ><EchoCard :event="selected" />
-          </div>
+      </div>
+
+      <div class="card">
+        <div class="event-cards-row trail-event-list">
+          <SelectionButton
+            v-for="event in allEvents"
+            :key="event.id"
+            :selected="selectedId === event.id"
+            :meta="event.date"
+            :badge="event.isNew ? 'NEW' : undefined"
+            stretch
+            @click="selectedId = event.id"
+          >
+            事件 {{ event.id }}：{{ event.title }}
+          </SelectionButton>
         </div>
-        <div v-else class="card empty-state">
-          <div>🌱</div>
-          <h2>這段時間還沒有留下足跡</h2>
-          <p>先和艾可聊聊，整理你的第一張 Echo Card。</p>
-          <RouterLink to="/" class="update-btn">開始聊聊</RouterLink>
+        <div v-if="selected" class="event-detail-box">
+          <EchoCard :event="selected" />
         </div>
       </div>
     </div>

@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { DashboardProfile, InsightSignal } from '@/mocks/echo'
+import type { DashboardProfile, InsightSignal } from '@/types/echo'
 
 export interface LlmChatResponse {
   text: string
