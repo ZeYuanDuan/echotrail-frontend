@@ -113,7 +113,11 @@ flowchart TD
 | LLM 服務      | `echotrail-backend` 的 Fastify API；金鑰與 prompts 留在後端環境變數 |
 | 正式前端產物  | `npm run build` 執行型別檢查與 Vite 建置，輸出 `dist/`        |
 
-LLM API 已移至獨立 `echotrail-backend` repository。正式部署仍需補上使用者認證與授權；Vite 開發代理不會隨 `dist/` 部署。靜態主機需將前端路由 fallback 至 `index.html`，API 路徑另行處理。
+LLM API 已移至獨立 `echotrail-backend` repository。`server/` 是此 repository 內的本機 Gemini 測試服務，沒有正式使用者驗證，不等同正式後端。
+
+正式前端產物部署至 Firebase Hosting。Hosting 將 `/api/**` 轉送到 `asia-east1` 的 `echotrail-backend` Cloud Run service；其他不存在的前端路徑回傳 `index.html`。前端維持 `VITE_API_BASE_URL=/api`；Vite proxy 只用於本機開發，不會隨 `dist/` 部署。
+
+Cloud Run 目前允許未驗證請求；正式部署仍需補上使用者認證與授權。
 
 ## 7. 檔案導覽與既有驗證
 
