@@ -9,13 +9,11 @@ const { state, status, saved, send, generateInsight, saveInsight } = useEcho()
 const router = useRouter()
 const bottom = ref<HTMLElement | null>(null)
 const input = ref<HTMLTextAreaElement | null>(null)
-const selectedScenarioId = ref<string | null>(null)
+const scenarioStarted = ref(false)
 const conversationTurn = computed(
   () => state.messages.filter((message) => message.role === 'user').length,
 )
-const selectedScenario = computed(() =>
-  conversationScenarios.find((scenario) => scenario.id === selectedScenarioId.value),
-)
+const scenarioTurnCount = computed(() => conversationScenarios[0]?.turns.length ?? 0)
 
 watch(
   () => [state.messages.length, state.insight, status.busy],
@@ -29,16 +27,15 @@ watch(
   () => [state.messages.length, state.draft],
   ([messageCount, draft]) => {
     if (messageCount === 0 && !draft) {
-      selectedScenarioId.value = null
+      scenarioStarted.value = false
     }
   },
 )
 
 function chooseScenarioTurn(scenario: ConversationScenario) {
-  if (conversationTurn.value > 0 && scenario.id !== selectedScenarioId.value) return
-  selectedScenarioId.value = scenario.id
   const text = scenario.turns[conversationTurn.value]
   if (!text) return
+  scenarioStarted.value = true
   state.draft = text
   input.value?.focus()
 }
@@ -82,8 +79,8 @@ async function updateDashboard() {
         </button>
       </div>
       <EchoCard v-if="state.insight" :event="state.insight">
-        <p class="echo-footer">已完成本次 Echo Card，可將 grounded 訊號加入 Dashboard。</p>
-        <p class="demo-note">卡片與圖表訊號由後端生成；所有引證已通過逐字稿比對。</p>
+        <p class="echo-footer">已生成暫存 Echo Card，您仍可以繼續對話。</p>
+        <p class="demo-note">繼續對話會清除這張預覽；按下更新後，才會儲存事件並更新 Dashboard。</p>
         <button class="update-btn" :disabled="status.busy" @click="updateDashboard">
           {{ saved ? '已更新 · 查看 Dashboard' : '更新至 Dashboard' }}
         </button>
@@ -119,26 +116,33 @@ async function updateDashboard() {
         </button>
       </div>
 
-      <button
-        v-if="
-          selectedScenario &&
-          conversationTurn > 0 &&
-          conversationTurn < selectedScenario.turns.length
-        "
-        type="button"
-        class="scenario-next"
-        :disabled="status.busy"
-        @click="chooseScenarioTurn(selectedScenario)"
-      >
-        帶入「{{ selectedScenario.label }}」第 {{ conversationTurn + 1 }} 輪
-      </button>
-      <p
-        v-else-if="selectedScenario && conversationTurn >= selectedScenario.turns.length"
-        class="demo-note"
-      >
+      <p v-if="scenarioStarted && conversationTurn >= scenarioTurnCount" class="demo-note">
         三輪情境已完成，可以產生洞察。
       </p>
     </form>
+
+    <section
+      v-if="scenarioStarted && conversationTurn > 0 && conversationTurn < scenarioTurnCount"
+      aria-labelledby="scenario-next-title"
+    >
+      <div class="scenario-heading">
+        <h2 id="scenario-next-title">選擇第 {{ conversationTurn + 1 }} 輪腳本</h2>
+        <p>可以自由選擇任一情境，不必延續上一輪的腳本。</p>
+      </div>
+      <div class="suggest-row">
+        <button
+          v-for="scenario in conversationScenarios"
+          :key="`${scenario.id}-${conversationTurn}`"
+          type="button"
+          class="suggest-card scenario-card"
+          :disabled="status.busy"
+          @click="chooseScenarioTurn(scenario)"
+        >
+          <strong>{{ scenario.label }}</strong>
+          <span class="sub">第 {{ conversationTurn + 1 }} 輪 · {{ scenario.description }}</span>
+        </button>
+      </div>
+    </section>
 
     <section v-if="!state.messages.length" aria-labelledby="scenario-title">
       <div class="scenario-heading">
@@ -151,8 +155,6 @@ async function updateDashboard() {
           :key="scenario.id"
           type="button"
           class="suggest-card scenario-card"
-          :class="{ active: scenario.id === selectedScenarioId }"
-          :aria-pressed="scenario.id === selectedScenarioId"
           :disabled="status.busy"
           @click="chooseScenarioTurn(scenario)"
         >

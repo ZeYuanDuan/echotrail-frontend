@@ -193,6 +193,7 @@ async function send() {
   }
 
   status.error = ''
+  const previousInsight = state.insight
   state.messages.push({ role: 'user', text })
   state.draft = ''
   state.insight = null
@@ -203,6 +204,7 @@ async function send() {
   } catch (error) {
     state.messages.pop()
     state.draft = text
+    state.insight = previousInsight
     const data: unknown = axios.isAxiosError(error) ? error.response?.data : null
     status.error =
       data && typeof data === 'object' && 'error' in data && typeof data.error === 'string'
