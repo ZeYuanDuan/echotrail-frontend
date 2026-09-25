@@ -50,8 +50,7 @@ function clearData() {
         </div>
       </nav>
       <div class="sidebar-footer">
-        <span>資料儲存在這台裝置</span
-        ><button :disabled="status.busy" @click="resetDialog?.showModal()">清除所有資料</button>
+        <button :disabled="status.busy" @click="resetDialog?.showModal()">清除所有資料</button>
       </div>
     </aside>
     <main class="main">

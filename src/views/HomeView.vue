@@ -9,7 +9,6 @@ const { state, status, saved, send, generateInsight, saveInsight } = useEcho()
 const router = useRouter()
 const bottom = ref<HTMLElement | null>(null)
 const input = ref<HTMLTextAreaElement | null>(null)
-const sourceNote = ref('')
 const selectedScenarioId = ref<string | null>(null)
 const conversationTurn = computed(
   () => state.messages.filter((message) => message.role === 'user').length,
@@ -31,7 +30,6 @@ watch(
   ([messageCount, draft]) => {
     if (messageCount === 0 && !draft) {
       selectedScenarioId.value = null
-      sourceNote.value = ''
     }
   },
 )
@@ -42,7 +40,6 @@ function chooseScenarioTurn(scenario: ConversationScenario) {
   const text = scenario.turns[conversationTurn.value]
   if (!text) return
   state.draft = text
-  sourceNote.value = `已帶入「${scenario.label}」第 ${conversationTurn.value + 1} 輪，送出後會取得 Gemini 回覆。`
   input.value?.focus()
 }
 
@@ -61,17 +58,10 @@ async function updateDashboard() {
 
 <template>
   <div class="chat-wrap">
-    <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-      <span class="text-sm text-muted-foreground" role="status">Gemini 即時對話</span>
-    </div>
-    <p class="mb-4 text-sm text-muted-foreground">
-      訊息會送到 EchoTrail 後端，再由服務端呼叫 Gemini。產卡後可追溯圖表引用的原句。
-    </p>
-
-    <h1 v-if="!state.messages.length" class="wtitle">👋 Hi Welcome to EchoTrail!</h1>
+    <h1 v-if="!state.messages.length" class="page-title">👋 Hi Welcome to EchoTrail!</h1>
     <template v-else>
       <div class="chat-heading">
-        <h1>與艾可聊聊</h1>
+        <h1 class="page-title">與艾可聊聊</h1>
         <span class="demo-label">Gemini</span>
       </div>
       <div aria-live="polite" class="chat-messages">
@@ -145,7 +135,6 @@ async function updateDashboard() {
       >
         三輪情境已完成，可以產生洞察。
       </p>
-      <p v-if="sourceNote" class="demo-note" role="status">{{ sourceNote }}</p>
     </form>
 
     <section v-if="!state.messages.length" aria-labelledby="scenario-title">
@@ -166,7 +155,6 @@ async function updateDashboard() {
         >
           <strong>{{ scenario.label }}</strong>
           <span class="sub">{{ scenario.description }}</span>
-          <span class="scenario-meta">三輪對話</span>
         </button>
       </div>
     </section>

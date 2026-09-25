@@ -89,10 +89,23 @@
   margin: 0 auto;
   padding: 62px 60px;
 }
-.wtitle {
+.page-title {
+  margin: 0;
+  color: #2c2c2c;
   font-size: 26px;
-  font-weight: 700;
-  margin-bottom: 24px;
+  font-weight: 800;
+  line-height: 1.35;
+  letter-spacing: -0.015em;
+}
+.page-header {
+  margin-bottom: 28px;
+}
+.page-subtitle {
+  max-width: 650px;
+  margin: 8px 0 0;
+  color: #6f6a62;
+  font-size: 14px;
+  line-height: 1.75;
 }
 .input-box {
   margin-top: 24px;
@@ -118,10 +131,6 @@ textarea::placeholder {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 24px;
-}
-.chat-heading h1 {
-  font-size: 20px;
-  font-weight: 700;
 }
 .chat-msg-user,
 .chat-msg-echo {
@@ -185,23 +194,6 @@ textarea::placeholder {
   border-color: #3a6ea5;
   box-shadow: 0 0 0 2px rgb(58 110 165 / 12%);
 }
-.scenario-meta {
-  display: inline-block;
-  margin-top: 18px;
-  color: #8c8579;
-  font-size: 11px;
-  font-weight: 700;
-}
-.scenario-next {
-  margin-top: 14px;
-  padding: 9px 13px;
-  border: 1px dashed #3a6ea5;
-  border-radius: 8px;
-  background: #f4f8fc;
-  color: #2f5f91;
-  font-size: 13px;
-  font-weight: 700;
-}
 .insight-donut {
   width: 64px;
   height: 64px;
@@ -234,20 +226,9 @@ textarea::placeholder {
   align-items: flex-end;
   justify-content: space-between;
   gap: 32px;
-  padding-bottom: 28px;
-  border-bottom: 1px solid #dedbd4;
 }
 .dashboard-hero h1 {
   max-width: 680px;
-  font-size: clamp(30px, 4vw, 54px);
-  line-height: 1.15;
-  letter-spacing: -0.035em;
-}
-.dashboard-hero p {
-  max-width: 650px;
-  margin-top: 14px;
-  color: #6f6a62;
-  line-height: 1.75;
 }
 .signal-count {
   display: grid;
@@ -290,7 +271,7 @@ textarea::placeholder {
   display: grid;
   grid-template-columns: minmax(260px, 0.78fr) minmax(420px, 1.35fr);
   gap: 20px;
-  margin-top: 28px;
+  margin-top: 0;
 }
 .overview-card {
   min-width: 0;
@@ -488,7 +469,7 @@ textarea::placeholder {
   line-height: 1.75;
 }
 .dashboard-detail {
-  margin-top: 28px;
+  margin-top: 0;
   padding: 36px;
   border: 1px solid #dedbd4;
   border-radius: 16px;
@@ -908,27 +889,7 @@ textarea::placeholder {
 .trail-content-generated {
   display: grid;
   gap: 20px;
-  margin-top: 24px;
-}
-.trail-summary-row {
-  margin: 0;
-  flex-wrap: wrap;
-}
-.ts-card {
-  min-width: 150px;
-}
-.ts-card h2 {
-  font-size: 13px;
-  font-weight: 800;
-  margin-bottom: 10px;
-}
-.trail-summary-copy {
-  flex: 2;
-}
-.trail-summary-copy p {
-  color: #6f6960;
-  font-size: 13px;
-  line-height: 1.7;
+  margin-top: 0;
 }
 .event-cards-row {
   padding-top: 14px;
@@ -1045,7 +1006,7 @@ textarea::placeholder {
   .trail-layout {
     padding: 24px 16px;
   }
-  .wtitle {
+  .page-title {
     font-size: 22px;
   }
   .dashboard-hero,
@@ -1122,9 +1083,6 @@ textarea::placeholder {
   .trail-side .q-list {
     display: flex;
     gap: 22px;
-  }
-  .trail-summary-row {
-    flex-direction: column;
   }
   .trail-event-list {
     grid-template-columns: 1fr;

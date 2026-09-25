@@ -77,11 +77,6 @@
 }
 
 /* ===== Heading hierarchy (# / ##) ===== */
-.h1 {
-  font-size: 22px;
-  font-weight: 800;
-  margin: 0 0 18px 0;
-}
 .card-h1 {
   font-size: 17px;
   font-weight: 800;
@@ -197,11 +192,6 @@
 .chat-wrap {
   padding: 32px 40px;
   max-width: 1180px;
-}
-#welcomeScreen .wtitle {
-  font-size: 26px;
-  font-weight: 700;
-  margin-bottom: 24px;
 }
 .input-box {
   background: #fff;
@@ -681,29 +671,6 @@
   color: #444;
 }
 
-/* ============ MY TRAIL (v2 content restored) ============ */
-.trail-summary-row {
-  display: flex;
-  gap: 16px;
-  margin-bottom: 20px;
-}
-.ts-card {
-  flex: 1;
-  background: #fff;
-  border: 1px solid #e8e5e0;
-  border-radius: 16px;
-  padding: 18px;
-}
-.ts-card h4 {
-  font-size: 13px;
-  margin: 0 0 10px 0;
-  font-weight: 800;
-}
-.ts-num {
-  font-size: 30px;
-  font-weight: 800;
-  color: #3a6ea5;
-}
 .ts-kw span {
   display: block;
   font-size: 12.5px;

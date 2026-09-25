@@ -23,9 +23,9 @@ const selected = computed(() => allEvents.value.find((event) => event.id === sel
 
 <template>
   <div class="dashboard-content">
-    <header>
-      <h1 class="h1">My Trail</h1>
-      <p class="mt-2 text-sm text-muted-foreground">
+    <header class="page-header">
+      <h1 class="page-title">My Trail</h1>
+      <p class="page-subtitle">
         {{
           allEvents.length
             ? `所有事件 · 共 ${allEvents.length} 筆`
@@ -46,19 +46,6 @@ const selected = computed(() => allEvents.value.find((event) => event.id === sel
     </section>
 
     <div v-else class="trail-content trail-content-generated">
-      <div class="card">
-        <div class="trail-summary-row">
-          <div class="ts-card">
-            <h2>已整理事件</h2>
-            <div class="ts-num">{{ allEvents.length }}</div>
-          </div>
-          <div class="ts-card trail-summary-copy">
-            <h2>資料來源</h2>
-            <p>Echo Card、洞察與引用原句均由你的 Gemini 對話產生。</p>
-          </div>
-        </div>
-      </div>
-
       <div class="card">
         <div class="event-cards-row trail-event-list">
           <SelectionButton

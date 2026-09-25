@@ -140,10 +140,10 @@ const northStarAxes = computed(() => {
 
 <template>
   <main class="dashboard-content generated-dashboard">
-    <header class="dashboard-hero">
+    <header class="dashboard-hero page-header">
       <div>
-        <h1 class="h1">{{ section === 'overview' ? 'My Dashboard' : '你的職涯洞察' }}</h1>
-        <p>
+        <h1 class="page-title">{{ section === 'overview' ? 'My Dashboard' : '你的職涯洞察' }}</h1>
+        <p class="page-subtitle">
           {{
             section === 'overview'
               ? '從對話裡看見你的能力、動機、價值標準與不變的職涯追求。'
