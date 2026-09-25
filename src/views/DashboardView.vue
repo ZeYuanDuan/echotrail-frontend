@@ -1,32 +1,45 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import CareerAnchorRadar from '@/components/dashboard/CareerAnchorRadar.vue'
-import { useEcho } from '@/composables/useEcho'
-import type { DashboardProfile, InsightFramework, TrailEvent } from '@/mocks/echo'
+import { useDashboard } from '@/composables/useDashboard'
+import { useIdentity } from '@/composables/useIdentity'
+import type { InsightFramework } from '@/mocks/echo'
 
 const route = useRoute()
-const { allEvents } = useEcho()
+const { user } = useIdentity()
+const { snapshot, busy, error, load } = useDashboard()
 const selectedFramework = ref<InsightFramework>('riasec')
 const section = computed(() => String(route.params.section ?? 'overview'))
-
+onMounted(() => {
+  if (user.value) void load(user.value.id)
+})
+function retry() {
+  if (user.value) void load(user.value.id)
+}
+const profile = computed(() => snapshot.value?.profile ?? null)
+const anchorSummary = computed(
+  () => profile.value?.anchor ?? { primary: '', ability: [], motivation: [], values: [] },
+)
+const keywords = computed(() => profile.value?.keywords ?? [])
+const patterns = computed(() => profile.value?.patterns ?? [])
 const frameworkMeta: Record<
   InsightFramework,
   { title: string; description: string; dimensions: Record<string, string> }
 > = {
   riasec: {
     title: 'RIASEC 工作興趣',
-    description: '從事件裡反覆出現的工作偏好，觀察你傾向投入哪類問題。',
+    description: '事件訊號預覽：從已確認事件觀察工作偏好。',
     dimensions: { R: '實作', I: '研究', A: '創意', S: '助人', E: '推動', C: '組織' },
   },
   disc: {
     title: 'DISC 行動風格',
-    description: '不是性格測驗結果，而是你在這些事件中展現的互動與決策傾向。',
+    description: '事件訊號預覽：從已確認事件觀察互動與決策傾向。',
     dimensions: { D: '主導', I: '影響', S: '穩定', C: '謹慎' },
   },
   schein: {
     title: '職涯錨點',
-    description: '從你不願妥協的判斷中，找出目前最清楚的職涯驅動力。',
+    description: '事件訊號預覽：從已確認事件觀察職涯驅動力。',
     dimensions: {
       technical: '專業能力',
       managerial: '管理整合',
@@ -39,113 +52,19 @@ const frameworkMeta: Record<
     },
   },
 }
-
-const fallbackProfile = (event: TrailEvent): DashboardProfile => ({
-  persona: {
-    headline: '正在用具體經驗整理自己職涯方向的實踐者',
-    summaries: [event.like, event.value, event.dislike],
-    quote: event.quote,
-  },
-  anchor: {
-    primary: '專家達人',
-    ability: ['拆解事件裡的關鍵問題', '從經驗中整理可重複的方法'],
-    motivation: [event.like, '持續累積能看見的成長'],
-    values: [event.value, event.dislike],
-  },
-  keywords: [
-    { text: '成長', weight: 5 },
-    { text: '判斷', weight: 4 },
-    { text: '方法', weight: 4 },
-    { text: '工作環境', weight: 3 },
-    { text: '自我覺察', weight: 3 },
-  ],
-  patterns: [
-    { title: '遇到不確定時，會先釐清問題再決定下一步', evidenceQuote: event.quote },
-    { title: '會把情緒整理成可採取行動的判斷', evidenceQuote: event.quote },
-  ],
-  northStar: {
-    primaryAnchor: '專家達人',
-    tagline: '用專業判斷看清問題，讓每一步都累積成長',
-    desires: ['解決真正重要的問題', '讓專業能力持續被驗證'],
-    bottomLine: event.dislike,
-    nextSteps: ['記錄更多能代表成長的事件', '把有效方法帶進更早期的工作規劃'],
-  },
-})
-
-const analyzedEvents = computed(() =>
-  allEvents.value.filter((event) => event.signals?.length || event.dashboard),
+const chartRows = computed(() =>
+  Object.entries(frameworkMeta[selectedFramework.value].dimensions).map(([dimension, label]) => ({
+    dimension,
+    label,
+    score: snapshot.value?.frameworks.scores[selectedFramework.value][dimension] ?? 0,
+  })),
 )
-const latestEvent = computed(() => analyzedEvents.value[analyzedEvents.value.length - 1])
-const profile = computed(() => {
-  const event = latestEvent.value
-  return event ? (event.dashboard ?? fallbackProfile(event)) : null
-})
-const dashboardProfiles = computed(() =>
-  analyzedEvents.value.map((event) => event.dashboard ?? fallbackProfile(event)),
-)
-const anchorSummary = computed(() => {
-  const unique = (items: string[]) => [...new Set(items)].slice(0, 3)
-  const primaryCounts = new Map<string, number>()
-  dashboardProfiles.value.forEach((current) => {
-    primaryCounts.set(current.anchor.primary, (primaryCounts.get(current.anchor.primary) ?? 0) + 1)
-  })
-  const primary = [...primaryCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? ''
-  return {
-    primary,
-    ability: unique(dashboardProfiles.value.flatMap((current) => current.anchor.ability)),
-    motivation: unique(dashboardProfiles.value.flatMap((current) => current.anchor.motivation)),
-    values: unique(dashboardProfiles.value.flatMap((current) => current.anchor.values)),
-  }
-})
-const signals = computed(() => analyzedEvents.value.flatMap((event) => event.signals ?? []))
-
-const keywords = computed(() => {
-  const totals = new Map<string, number>()
-  analyzedEvents.value.forEach((event) => {
-    const current = event.dashboard ?? fallbackProfile(event)
-    current.keywords.forEach((keyword) => {
-      totals.set(keyword.text, (totals.get(keyword.text) ?? 0) + keyword.weight)
-    })
-  })
-  const maximum = Math.max(1, ...totals.values())
-  return [...totals.entries()]
-    .map(([text, weight]) => ({ text, weight: Math.max(1, Math.round((weight / maximum) * 5)) }))
-    .sort((a, b) => b.weight - a.weight)
-    .slice(0, 12)
-})
-const patterns = computed(() => {
-  const seen = new Set<string>()
-  return analyzedEvents.value
-    .flatMap((event) => (event.dashboard ?? fallbackProfile(event)).patterns)
-    .filter((pattern) => {
-      if (seen.has(pattern.title)) return false
-      seen.add(pattern.title)
-      return true
-    })
-    .slice(0, 5)
-})
-
-const chartRows = computed(() => {
-  const framework = selectedFramework.value
-  return Object.entries(frameworkMeta[framework].dimensions).map(([dimension, label]) => {
-    const matching = signals.value.filter(
-      (signal) => signal.framework === framework && signal.dimension === dimension,
-    )
-    const score = matching.length
-      ? Math.round(
-          (matching.reduce((sum, signal) => sum + signal.strength, 0) / matching.length) * 10,
-        )
-      : 0
-    return { dimension, label, score }
-  })
-})
 const strongest = computed(() => [...chartRows.value].sort((a, b) => b.score - a.score)[0])
-const selectedSignals = computed(() =>
-  analyzedEvents.value.flatMap((event) =>
-    (event.signals ?? [])
-      .filter((signal) => signal.framework === selectedFramework.value)
-      .map((signal) => ({ ...signal, eventTitle: event.title })),
-  ),
+const selectedSignals = computed(
+  () =>
+    snapshot.value?.frameworks.evidence.filter(
+      (signal) => signal.framework === selectedFramework.value,
+    ) ?? [],
 )
 const discPosition = computed(() => {
   const score = (dimension: string) =>
@@ -156,23 +75,12 @@ const discPosition = computed(() => {
     top: `${clamp(50 + (score('C') - score('I')) * 0.38)}%`,
   }
 })
-
-const northStarAxes = computed(() => {
-  const labels = Object.entries(frameworkMeta.schein.dimensions)
-  return labels.map(([dimension, label]) => {
-    const matching = signals.value.filter(
-      (signal) => signal.framework === 'schein' && signal.dimension === dimension,
-    )
-    return {
-      label,
-      score: matching.length
-        ? Math.round(
-            (matching.reduce((sum, signal) => sum + signal.strength, 0) / matching.length) * 10,
-          )
-        : 0,
-    }
-  })
-})
+const northStarAxes = computed(() =>
+  Object.entries(frameworkMeta.schein.dimensions).map(([dimension, label]) => ({
+    label,
+    score: snapshot.value?.frameworks.scores.schein[dimension] ?? 0,
+  })),
+)
 </script>
 
 <template>
@@ -189,12 +97,17 @@ const northStarAxes = computed(() => {
         </p>
       </div>
       <div class="signal-count" aria-label="已分析事件數">
-        <strong>{{ analyzedEvents.length }}</strong
+        <strong>{{ snapshot?.sourceEventCount ?? 0 }}</strong
         ><span>筆對話事件</span>
       </div>
     </header>
 
-    <section v-if="!latestEvent || !profile" class="dashboard-empty">
+    <div v-if="busy" role="status">正在讀取 Dashboard…</div>
+    <div v-else-if="error" role="alert">
+      <p>{{ error }}</p>
+      <button class="update-btn" @click="retry">重試</button>
+    </div>
+    <section v-else-if="!snapshot || !profile" class="dashboard-empty">
       <div class="empty-orbit" aria-hidden="true"></div>
       <h2>第一個洞察還在等你</h2>
       <p>完成一段 Gemini 對話、產生 Echo Card，再按「更新至 Dashboard」。</p>
@@ -202,6 +115,10 @@ const northStarAxes = computed(() => {
     </section>
 
     <template v-else>
+      <p class="text-muted-foreground">
+        已保存版本 · {{ snapshot.sourceEventCount }} 筆事件 ·
+        {{ new Date(snapshot.createdAt).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' }) }}
+      </p>
       <div v-if="section === 'overview'" class="dashboard-overview">
         <RouterLink to="/dashboard/persona" class="overview-card persona-overview">
           <div class="overview-heading">
@@ -379,6 +296,10 @@ const northStarAxes = computed(() => {
       </section>
 
       <template v-else>
+        <p class="text-muted-foreground">
+          已保存版本 · {{ snapshot.sourceEventCount }} 筆事件 ·
+          {{ new Date(snapshot.createdAt).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' }) }}
+        </p>
         <nav class="framework-tabs" aria-label="選擇分析框架">
           <button
             v-for="(meta, framework) in frameworkMeta"
@@ -426,17 +347,18 @@ const northStarAxes = computed(() => {
                 <span class="signal-score">{{ row.score || '—' }}</span>
               </div>
             </div>
-            <p v-if="analyzedEvents.length < 3" class="unlock-note">
-              目前是 {{ analyzedEvents.length }}/3 筆的前置預覽；累積三筆後再作為穩定趨勢解讀。
+            <p v-if="snapshot && snapshot.sourceEventCount < 3" class="unlock-note">
+              目前是 {{ snapshot?.sourceEventCount ?? 0 }}/3
+              筆的前置預覽；累積三筆後再作為穩定趨勢解讀。
             </p>
           </div>
           <aside class="evidence-ledger">
-            <h2>分數從哪裡來</h2>
+            <h2>事件訊號預覽 · 分數從哪裡來</h2>
             <p>訊號只新增、不覆寫；每筆都保留事件與逐字原句。</p>
             <div v-if="selectedSignals.length" class="evidence-listing">
               <article
-                v-for="(signal, index) in selectedSignals"
-                :key="`${signal.eventTitle}-${index}`"
+                v-for="signal in selectedSignals"
+                :key="`${signal.eventId}-${signal.framework}-${signal.dimension}-${signal.evidenceQuote}`"
               >
                 <div>
                   <span>{{ frameworkMeta[selectedFramework].dimensions[signal.dimension] }}</span
