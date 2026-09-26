@@ -25,9 +25,10 @@ function update(field: EditedField, event: Event) {
         </ul>
       </section>
       <section
-        v-for="field in ['emotion', 'like', 'dislike', 'value', 'quote'] as const"
+        v-for="field in ['emotion', 'like', 'dislike', 'value'] as const"
         :key="field"
         class="echo-box"
+        :class="{ 'echo-box-wide': field === 'value' }"
       >
         <h3>
           {{
@@ -36,7 +37,6 @@ function update(field: EditedField, event: Event) {
               like: '我在意／適合／擅長',
               dislike: '我討厭／不適合／不在意',
               value: '我的價值主張',
-              quote: '引證原話',
             }[field]
           }}
         </h3>

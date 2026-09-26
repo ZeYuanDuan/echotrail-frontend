@@ -163,7 +163,7 @@ textarea::placeholder {
   max-width: 100%;
   resize: vertical;
 }
-.echo-grid > .echo-box:last-child {
+.echo-box-wide {
   grid-column: 1 / -1;
 }
 .insight-btn-wrap {
