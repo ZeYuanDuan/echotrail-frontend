@@ -1,15 +1,13 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import CareerAnchorRadar from '@/components/dashboard/CareerAnchorRadar.vue'
 import { useDashboard } from '@/composables/useDashboard'
 import { useIdentity } from '@/composables/useIdentity'
-import type { InsightFramework } from '@/types/echo'
 
 const route = useRoute()
 const { user } = useIdentity()
 const { snapshot, busy, error, load } = useDashboard()
-const selectedFramework = ref<InsightFramework>('riasec')
 const section = computed(() => String(route.params.section ?? 'overview'))
 onMounted(() => {
   if (user.value) void load(user.value.id)
@@ -23,64 +21,57 @@ const anchorSummary = computed(
 )
 const keywords = computed(() => profile.value?.keywords ?? [])
 const patterns = computed(() => profile.value?.patterns ?? [])
-const frameworkMeta: Record<
-  InsightFramework,
-  { title: string; description: string; dimensions: Record<string, string> }
-> = {
-  riasec: {
-    title: 'RIASEC 工作興趣',
-    description: '事件訊號預覽：從已確認事件觀察工作偏好。',
-    dimensions: { R: '實作', I: '研究', A: '創意', S: '助人', E: '推動', C: '組織' },
-  },
-  disc: {
-    title: 'DISC 行動風格',
-    description: '事件訊號預覽：從已確認事件觀察互動與決策傾向。',
-    dimensions: { D: '主導', I: '影響', S: '穩定', C: '謹慎' },
-  },
-  schein: {
-    title: '職涯錨點',
-    description: '事件訊號預覽：從已確認事件觀察職涯驅動力。',
-    dimensions: {
-      technical: '專業能力',
-      managerial: '管理整合',
-      autonomy: '自主獨立',
-      security: '安全穩定',
-      entrepreneurial: '創業創新',
-      service: '服務使命',
-      challenge: '純粹挑戰',
-      lifestyle: '生活整合',
-    },
-  },
+const scheinDimensions: Record<string, string> = {
+  technical: '專業能力',
+  managerial: '管理整合',
+  autonomy: '自主獨立',
+  security: '安全穩定',
+  entrepreneurial: '創業創新',
+  service: '服務使命',
+  challenge: '純粹挑戰',
+  lifestyle: '生活整合',
 }
-const chartRows = computed(() =>
-  Object.entries(frameworkMeta[selectedFramework.value].dimensions).map(([dimension, label]) => ({
+const northStarAxes = computed(() =>
+  Object.entries(scheinDimensions).map(([dimension, label]) => ({
     dimension,
     label,
-    score: snapshot.value?.frameworks.scores[selectedFramework.value][dimension] ?? 0,
+    score: Math.min(
+      100,
+      Math.max(0, Math.round(snapshot.value?.frameworks.scores.schein[dimension] ?? 50)),
+    ),
   })),
 )
-const strongest = computed(() => [...chartRows.value].sort((a, b) => b.score - a.score)[0])
-const selectedSignals = computed(
-  () =>
-    snapshot.value?.frameworks.evidence.filter(
-      (signal) => signal.framework === selectedFramework.value,
-    ) ?? [],
+const northStarSignals = computed(
+  () => snapshot.value?.frameworks.evidence.filter((signal) => signal.framework === 'schein') ?? [],
 )
-const discPosition = computed(() => {
-  const score = (dimension: string) =>
-    chartRows.value.find((row) => row.dimension === dimension)?.score ?? 0
-  const clamp = (value: number) => Math.min(88, Math.max(12, value))
-  return {
-    left: `${clamp(50 + (score('D') - score('S')) * 0.38)}%`,
-    top: `${clamp(50 + (score('C') - score('I')) * 0.38)}%`,
+const northStarRankings = computed(() =>
+  [...northStarAxes.value].sort((left, right) => right.score - left.score),
+)
+const activeAnchorCount = computed(
+  () => new Set(northStarSignals.value.map((signal) => signal.dimension)).size,
+)
+const signalStrengthLabel = (score: number) => {
+  const strength = Math.abs(score)
+  const level = strength <= 3 ? '弱' : strength <= 6 ? '中度' : strength <= 8 ? '強' : '核心'
+  if (score > 0) return `${level}支持`
+  return strength >= 9 ? '明確排斥' : `${level}反向`
+}
+const northStarEvents = computed(() => {
+  const events = new Map<
+    string,
+    { id: string; title: string; signals: typeof northStarSignals.value }
+  >()
+  for (const signal of northStarSignals.value) {
+    const event = events.get(signal.eventId) ?? {
+      id: signal.eventId,
+      title: signal.eventTitle,
+      signals: [],
+    }
+    event.signals.push(signal)
+    events.set(signal.eventId, event)
   }
+  return [...events.values()]
 })
-const northStarAxes = computed(() =>
-  Object.entries(frameworkMeta.schein.dimensions).map(([dimension, label]) => ({
-    label,
-    score: snapshot.value?.frameworks.scores.schein[dimension] ?? 0,
-  })),
-)
 </script>
 
 <template>
@@ -274,6 +265,23 @@ const northStarAxes = computed(() =>
         <RouterLink to="/dashboard" class="back-link">回到總覽</RouterLink>
         <h2>找到我的職場北極星</h2>
         <p class="detail-lead">職涯錨定如何指引內心不變的追求</p>
+        <div class="north-star-summary" aria-label="職場北極星分數摘要">
+          <div>
+            <span>有效證據</span>
+            <strong>{{ northStarSignals.length }}</strong>
+            <small>筆</small>
+          </div>
+          <div>
+            <span>已觸發錨點</span>
+            <strong>{{ activeAnchorCount }}</strong>
+            <small>/ 8</small>
+          </div>
+          <div>
+            <span>目前最強</span>
+            <strong class="summary-anchor">{{ northStarRankings[0]?.label ?? '尚未形成' }}</strong>
+            <small>{{ northStarRankings[0]?.score ?? 0 }} 分</small>
+          </div>
+        </div>
         <div class="north-star-layout">
           <CareerAnchorRadar :axes="northStarAxes" />
           <div class="north-star-copy">
@@ -291,85 +299,41 @@ const northStarAxes = computed(() =>
             </ul>
           </div>
         </div>
-      </section>
-
-      <template v-else>
-        <p class="text-muted-foreground">
-          已保存版本 · {{ snapshot.sourceEventCount }} 筆事件 ·
-          {{ new Date(snapshot.createdAt).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' }) }}
-        </p>
-        <nav class="framework-tabs" aria-label="選擇分析框架">
-          <button
-            v-for="(meta, framework) in frameworkMeta"
-            :key="framework"
-            type="button"
-            :class="{ active: selectedFramework === framework }"
-            :aria-pressed="selectedFramework === framework"
-            @click="selectedFramework = framework"
-          >
-            {{ meta.title }}
-          </button>
-        </nav>
-        <section class="framework-stage" :aria-labelledby="`${selectedFramework}-title`">
-          <div class="chart-panel">
-            <header>
-              <div>
-                <h2 :id="`${selectedFramework}-title`">
-                  {{ frameworkMeta[selectedFramework].title }}
-                </h2>
-                <p>{{ frameworkMeta[selectedFramework].description }}</p>
-              </div>
-              <div v-if="strongest?.score" class="strongest-signal">
-                <span>目前最強訊號</span
-                ><strong>{{ strongest.label }} {{ strongest.score }}</strong>
-              </div>
-            </header>
-            <div v-if="selectedFramework === 'disc'" class="disc-map" aria-label="DISC 象限圖">
-              <span class="disc-axis disc-axis-top">影響</span
-              ><span class="disc-axis disc-axis-right">主導</span
-              ><span class="disc-axis disc-axis-bottom">謹慎</span
-              ><span class="disc-axis disc-axis-left">穩定</span>
-              <div class="disc-center-line horizontal"></div>
-              <div class="disc-center-line vertical"></div>
-              <div class="disc-position" :style="discPosition"><span>你</span></div>
+        <aside class="north-star-evidence">
+          <div class="north-star-evidence-heading">
+            <div>
+              <h2>事件如何形成這張圖</h2>
+              <p>LLM 會從事件辨認各錨點的支持或反向證據，再綜合成上方指數。</p>
             </div>
-            <div class="signal-bars">
-              <div v-for="row in chartRows" :key="row.dimension" class="signal-row">
-                <div class="signal-label">
-                  <strong>{{ row.dimension }}</strong
-                  ><span>{{ row.label }}</span>
-                </div>
-                <div class="signal-track" :aria-label="`${row.label} ${row.score} 分`">
-                  <div class="signal-fill" :style="{ width: `${row.score}%` }"></div>
-                </div>
-                <span class="signal-score">{{ row.score || '—' }}</span>
-              </div>
-            </div>
-            <p v-if="snapshot && snapshot.sourceEventCount < 3" class="unlock-note">
-              目前是 {{ snapshot?.sourceEventCount ?? 0 }}/3
-              筆的前置預覽；累積三筆後再作為穩定趨勢解讀。
-            </p>
+            <span>{{ northStarEvents.length }} 筆事件</span>
           </div>
-          <aside class="evidence-ledger">
-            <h2>事件訊號預覽 · 分數從哪裡來</h2>
-            <p>訊號只新增、不覆寫；每筆都保留事件與逐字原句。</p>
-            <div v-if="selectedSignals.length" class="evidence-listing">
-              <article
-                v-for="signal in selectedSignals"
-                :key="`${signal.eventId}-${signal.framework}-${signal.dimension}-${signal.evidenceQuote}`"
-              >
-                <div>
-                  <span>{{ frameworkMeta[selectedFramework].dimensions[signal.dimension] }}</span
-                  ><strong>+{{ signal.strength }}</strong>
+          <div v-if="northStarEvents.length" class="north-star-event-list">
+            <article v-for="event in northStarEvents" :key="event.id" class="north-star-event">
+              <header>
+                <h3>{{ event.title }}</h3>
+                <span>{{ event.signals.length }} 個錨點</span>
+              </header>
+              <div class="north-star-score-cluster">
+                <div
+                  v-for="signal in event.signals"
+                  :key="signal.dimension"
+                  class="north-star-score"
+                >
+                  <span>{{ scheinDimensions[signal.dimension] }}</span>
+                  <strong :class="{ negative: signal.strength < 0 }">
+                    {{ signalStrengthLabel(signal.strength) }}
+                  </strong>
                 </div>
-                <blockquote>「{{ signal.evidenceQuote }}」</blockquote>
-                <small>{{ signal.eventTitle }}</small>
-              </article>
-            </div>
-            <p v-else class="no-evidence">這次對話沒有足夠原句支撐此框架，因此沒有硬湊分數。</p>
-          </aside>
-        </section>
-      </template>
+              </div>
+              <blockquote v-for="signal in event.signals" :key="`${signal.dimension}-quote`">
+                <span>{{ scheinDimensions[signal.dimension] }}</span>
+                「{{ signal.evidenceQuote }}」
+              </blockquote>
+            </article>
+          </div>
+          <p v-else class="no-evidence">目前沒有足夠原句可支持職涯錨點分數。</p>
+        </aside>
+      </section>
     </template>
   </main>
 </template>

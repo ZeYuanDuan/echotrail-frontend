@@ -40,6 +40,7 @@ export type DashboardSnapshot = {
   sourceEventCount: number
   profile: DashboardProfile
   frameworks: {
+    scoreVersion?: number
     scores: Record<'riasec' | 'disc' | 'schein', Record<string, number>>
     evidence: Array<{
       eventId: string

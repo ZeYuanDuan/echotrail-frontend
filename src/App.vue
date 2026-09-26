@@ -16,7 +16,6 @@ const dashboardLinks = [
   { to: '/dashboard/keywords', label: '重複關鍵字' },
   { to: '/dashboard/patterns', label: '行為模式' },
   { to: '/dashboard/north-star', label: '職場北極星' },
-  { to: '/dashboard/frameworks', label: '分析框架' },
 ]
 onMounted(() => {
   void restore()

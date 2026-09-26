@@ -18,4 +18,13 @@ describe('Application routing', () => {
     expect(wrapper.get('.page-subtitle').text()).toBe('輸入暱稱，開始留下你的職涯事件。')
     wrapper.unmount()
   })
+
+  it('redirects the removed analysis frameworks page to the Dashboard overview', async () => {
+    const router = createRouter({ history: createMemoryHistory(), routes })
+
+    await router.push('/dashboard/frameworks')
+    await router.isReady()
+
+    expect(router.currentRoute.value.path).toBe('/dashboard')
+  })
 })
