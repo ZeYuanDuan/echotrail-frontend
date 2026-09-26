@@ -77,11 +77,6 @@
 }
 
 /* ===== Heading hierarchy (# / ##) ===== */
-.h1 {
-  font-size: 22px;
-  font-weight: 800;
-  margin: 0 0 18px 0;
-}
 .card-h1 {
   font-size: 17px;
   font-weight: 800;
@@ -138,13 +133,6 @@
 }
 .flash {
   animation: flashbg 5s ease;
-}
-
-.echo-app:not(.updated) .new-only {
-  display: none;
-}
-.echo-app.updated .old-only {
-  display: none;
 }
 
 /* ============ MY TRAIL ============ */
@@ -204,11 +192,6 @@
 .chat-wrap {
   padding: 32px 40px;
   max-width: 1180px;
-}
-#welcomeScreen .wtitle {
-  font-size: 26px;
-  font-weight: 700;
-  margin-bottom: 24px;
 }
 .input-box {
   background: #fff;
@@ -278,6 +261,7 @@
   margin-bottom: 8px;
 }
 .suggest-card .sub {
+  display: block;
   font-size: 12px;
   color: #888;
   margin-top: 6px;
@@ -687,29 +671,6 @@
   color: #444;
 }
 
-/* ============ MY TRAIL (v2 content restored) ============ */
-.trail-summary-row {
-  display: flex;
-  gap: 16px;
-  margin-bottom: 20px;
-}
-.ts-card {
-  flex: 1;
-  background: #fff;
-  border: 1px solid #e8e5e0;
-  border-radius: 16px;
-  padding: 18px;
-}
-.ts-card h4 {
-  font-size: 13px;
-  margin: 0 0 10px 0;
-  font-weight: 800;
-}
-.ts-num {
-  font-size: 30px;
-  font-weight: 800;
-  color: #3a6ea5;
-}
 .ts-kw span {
   display: block;
   font-size: 12.5px;
@@ -828,34 +789,6 @@
   overflow-x: auto;
   padding: 4px 2px 10px 2px;
 }
-.event-card2 {
-  background: #fff;
-  border: 1px solid #e5e0d5;
-  border-radius: 12px;
-  padding: 12px 16px;
-  font-size: 12.5px;
-  text-align: center;
-  cursor: pointer;
-  min-width: 150px;
-  flex-shrink: 0;
-  position: relative;
-}
-.event-card2.selected {
-  border-color: #e0954a;
-  box-shadow: 0 0 0 2px rgba(224, 149, 74, 0.3);
-}
-.event-card2 .new-tag {
-  position: absolute;
-  top: -9px;
-  right: -8px;
-  margin-left: 0;
-}
-.event-card2 .ec2-date {
-  color: #999;
-  display: block;
-  margin-top: 2px;
-}
-
 .event-detail-box {
   margin-top: 16px;
 }

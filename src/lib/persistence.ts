@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { DashboardProfile, InsightSignal } from '@/mocks/echo'
+import type { DashboardProfile, InsightSignal } from '@/types/echo'
 
 export type User = { id: string; name: string }
 export type CardFields = {
@@ -40,6 +40,7 @@ export type DashboardSnapshot = {
   sourceEventCount: number
   profile: DashboardProfile
   frameworks: {
+    scoreVersion?: number
     scores: Record<'riasec' | 'disc' | 'schein', Record<string, number>>
     evidence: Array<{
       eventId: string

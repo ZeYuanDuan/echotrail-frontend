@@ -29,3 +29,14 @@ const props = withDefaults(defineProps<Props>(), {
     <slot />
   </Primitive>
 </template>
+
+<style scoped>
+.echo-button {
+  background: #3a6ea5;
+  color: #fff;
+}
+
+.echo-button:hover {
+  background: #315f90;
+}
+</style>

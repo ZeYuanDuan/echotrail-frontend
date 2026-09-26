@@ -37,19 +37,6 @@ it('sends only recent chat context while preserving the conversation on screen',
           quote: '第 14 則訊息',
         },
         signals: [],
-        dashboard: {
-          persona: { headline: '人', summaries: ['甲'], quote: '第 14 則訊息' },
-          anchor: { primary: '專家', ability: ['甲'], motivation: ['乙'], values: ['丙'] },
-          keywords: [{ text: '甲', weight: 1 }],
-          patterns: [{ title: '甲', evidenceQuote: '第 14 則訊息' }],
-          northStar: {
-            primaryAnchor: '專家',
-            tagline: '甲',
-            desires: ['甲'],
-            bottomLine: '乙',
-            nextSteps: ['丙'],
-          },
-        },
       }
       echo.confirmedEvent.value = {
         id: crypto.randomUUID(),
@@ -69,7 +56,7 @@ it('sends only recent chat context while preserving the conversation on screen',
   expect(vi.mocked(chatLlm).mock.calls.slice(-1)[0]?.[0]).toHaveLength(31)
   expect(localStorage.getItem('echotrail-demo-v1')).toBeNull()
 })
-it('keeps a generated preview out of confirmed state', async () => {
+it('keeps a generated preview out of confirmed state and clears it when chatting continues', async () => {
   echo.state.draft = '我很有成就感'
   await echo.send()
   vi.mocked(generateInsightLlm).mockResolvedValue({
@@ -83,24 +70,13 @@ it('keeps a generated preview out of confirmed state', async () => {
       quote: '我很有成就感',
     },
     signals: [],
-    dashboard: {
-      persona: { headline: '人', summaries: ['甲'], quote: '我很有成就感' },
-      anchor: { primary: '專家', ability: ['甲'], motivation: ['乙'], values: ['丙'] },
-      keywords: [{ text: '甲', weight: 1 }],
-      patterns: [{ title: '甲', evidenceQuote: '我很有成就感' }],
-      northStar: {
-        primaryAnchor: '專家',
-        tagline: '甲',
-        desires: ['甲'],
-        bottomLine: '乙',
-        nextSteps: ['丙'],
-      },
-    },
   })
   await echo.generateInsight()
   expect(echo.state.insight?.card.title).toBe('成就')
   expect(echo.confirmedEvent.value).toBeNull()
-  echo.state.draft = '不能繼續送出'
+  echo.state.draft = '補充一段對話'
   await echo.send()
-  expect(echo.state.messages).toHaveLength(2)
+  expect(echo.state.messages).toHaveLength(4)
+  expect(echo.state.insight).toBeNull()
+  expect(echo.confirmedEvent.value).toBeNull()
 })

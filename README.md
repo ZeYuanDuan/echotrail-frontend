@@ -18,9 +18,8 @@ npm run dev
 
 1. 輸入暱稱；重新載入時會向後端再次查找。
 2. 聊天並按 `Generate Insight` 產生**未儲存**的卡片預覽，可編輯欄位。
-3. 按「確認 Echo Card」後，My Trail 立即可讀取這張卡。
-4. 按「更新至 Dashboard」才全量重算，成功後跳到 Dashboard；失敗時卡片保留供重試。
-   若確認後先離開或重新整理，可在 My Trail 按同名按鈕完成更新。
+3. 按「確認 Echo Card」後先保存事件，再自動全量重算 Dashboard；成功後跳到 Dashboard。
+4. 重算失敗時卡片仍保留，確認畫面與 My Trail 都可重新執行「更新至 Dashboard」。
 5. 「繼續此對話」可產生下一張卡，僅上傳新增訊息片段；`＋ New` 開始新對話。
 
 My Trail 和 Dashboard 從 API 讀取持久化資料，不使用瀏覽器中的示範事件。完整契約見 [前端架構](docs/frontend-architecture.md)、[My Trail](docs/specs/my-trail.md) 與 [Dashboard](docs/specs/dashboard.md)。

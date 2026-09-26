@@ -62,7 +62,6 @@ beforeEach(async () => {
   vi.mocked(generateInsightLlm).mockResolvedValue({
     card: structuredClone(card),
     signals: [{ framework: 'riasec', dimension: 'I', strength: 8, evidenceQuote: '有成就感' }],
-    dashboard: profile,
   })
   vi.mocked(saveEvent).mockImplementation(async (input) => saved(input))
 })
@@ -79,6 +78,9 @@ it('previews without persistence, freezes the first payload on ambiguous retry, 
   vi.mocked(saveEvent).mockRejectedValueOnce(new Error('network lost'))
   await echo.confirmInsight()
   const firstPayload = structuredClone(vi.mocked(saveEvent).mock.calls[0]![0])
+  expect(firstPayload.clientEventId).toMatch(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+  )
   expect(firstPayload.card.title).toBe('編輯後標題')
   echo.state.insight!.card.title = '後來改掉'
   await echo.confirmInsight()
@@ -90,6 +92,10 @@ it('previews without persistence, freezes the first payload on ambiguous retry, 
   echo.editCard('quote', '第二張卡我想挑戰新方向。')
   await echo.confirmInsight()
   const secondPayload = vi.mocked(saveEvent).mock.calls[2]![0]
+  expect(secondPayload.clientEventId).toMatch(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+  )
+  expect(secondPayload.clientEventId).not.toBe(firstPayload.clientEventId)
   expect(secondPayload.conversationId).toBe(conversation)
   expect(secondPayload.messages).toHaveLength(2)
   expect(secondPayload.messages[0]!.text).toContain('第二張卡')
@@ -125,7 +131,7 @@ it('unfreezes after a definitive 400 and ignores a late save for the previous us
   expect(echo.confirmedEvent.value).toBeNull()
   expect(echo.state.insight).toBeNull()
 })
-it('shows confirm before rebuild and navigates only after rebuild succeeds', async () => {
+it('confirms, rebuilds automatically, and navigates only after the Dashboard succeeds', async () => {
   const router = createRouter({ history: createMemoryHistory(), routes })
   await router.push('/')
   await router.isReady()
@@ -133,15 +139,21 @@ it('shows confirm before rebuild and navigates only after rebuild succeeds', asy
   await preview()
   await flushPromises()
   expect(wrapper.find('[data-test="confirm-card"]').exists()).toBe(true)
+  expect(wrapper.findAll('.echo-card textarea')).toHaveLength(5)
+  expect(wrapper.find('[aria-label="quote"]').exists()).toBe(false)
+  expect(wrapper.find('[aria-label="事件標題"]').exists()).toBe(false)
   expect(rebuildDashboard).not.toHaveBeenCalled()
+  vi.mocked(rebuildDashboard).mockRejectedValueOnce(new Error('failure'))
   await wrapper.get('[data-test="confirm-card"]').trigger('click')
   await flushPromises()
+  expect(saveEvent).toHaveBeenCalledOnce()
+  expect(rebuildDashboard).toHaveBeenCalledWith(identity.user.value!.id)
   expect(wrapper.find('[data-test="update-dashboard"]').exists()).toBe(true)
-  vi.mocked(rebuildDashboard).mockRejectedValueOnce(new Error('failure'))
-  await wrapper.get('[data-test="update-dashboard"]').trigger('click')
-  await flushPromises()
+  expect(wrapper.find('.input-box').exists()).toBe(false)
+  expect(wrapper.get('[data-test="new-conversation"]').text()).toBe('開啟新對話')
   expect(router.currentRoute.value.path).toBe('/')
-  expect(wrapper.text()).toContain('Dashboard 更新失敗')
+  expect(wrapper.text()).toContain('更新失敗，請在這裡重試。')
+  expect(wrapper.text()).not.toContain('事件已保存；若自動更新失敗')
   expect(echo.status.busy).toBe(false)
   vi.mocked(rebuildDashboard).mockResolvedValueOnce({
     id: 1,

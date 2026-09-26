@@ -9,7 +9,9 @@ import {
   type EventRecord,
 } from '@/lib/persistence'
 import { useIdentity } from '@/composables/useIdentity'
-import type { Message } from '@/mocks/echo'
+import type { Message } from '@/types/echo'
+
+export const MAX_MESSAGE_LENGTH = 800
 
 const { user } = useIdentity()
 const state = reactive<{ messages: Message[]; draft: string; insight: InsightResponse | null }>({
@@ -72,16 +74,24 @@ function errorMessage(caught: unknown, fallback: string): string {
 }
 async function send(): Promise<void> {
   const text = state.draft.trim()
-  if (!user.value || !text || status.busy || state.insight || confirmedEvent.value) return
-  if (text.length > 2000 || state.messages.length - segmentStartIndex.value >= 30) {
+  if (!user.value || !text || status.busy || confirmedEvent.value) return
+  if (text.length > MAX_MESSAGE_LENGTH || state.messages.length - segmentStartIndex.value >= 30) {
     status.error = '本張卡片的對話已達長度限制，請先產生洞察或點 ＋ New。'
     return
   }
   const identity = user.value.id
   const generation = requestGeneration
+  const previousInsight = state.insight
+  const previousClientEventId = clientEventId.value
+  const previousPendingSavePayload = pendingSavePayload.value
+  const previousEditedFields = [...editedFields.value]
   status.error = ''
   state.messages.push({ role: 'user', text })
   state.draft = ''
+  state.insight = null
+  clientEventId.value = null
+  pendingSavePayload.value = null
+  editedFields.value = []
   status.busy = true
   try {
     const { text: reply } = await chatLlm(state.messages.slice(-31))
@@ -91,6 +101,10 @@ async function send(): Promise<void> {
     if (identity === user.value?.id && generation === requestGeneration) {
       state.messages.pop()
       state.draft = text
+      state.insight = previousInsight
+      clientEventId.value = previousClientEventId
+      pendingSavePayload.value = previousPendingSavePayload
+      editedFields.value = previousEditedFields
       status.error = errorMessage(caught, '暫時無法取得回覆，請重試。')
     }
   } finally {
@@ -125,9 +139,9 @@ async function generateInsight(): Promise<void> {
     if (identity === user.value?.id && generation === requestGeneration) status.busy = false
   }
 }
-async function confirmInsight(): Promise<void> {
+async function confirmInsight(): Promise<EventRecord | null> {
   if (!user.value || !state.insight || !clientEventId.value || status.busy || confirmedEvent.value)
-    return
+    return null
   const identity = user.value.id
   const generation = requestGeneration
   status.busy = true
@@ -147,8 +161,10 @@ async function confirmInsight(): Promise<void> {
   pendingSavePayload.value = payload
   try {
     const result = await saveEvent(payload)
-    if (identity === user.value?.id && generation === requestGeneration)
+    if (identity === user.value?.id && generation === requestGeneration) {
       confirmedEvent.value = result
+      return result
+    }
   } catch (caught) {
     if (identity === user.value?.id && generation === requestGeneration) {
       if (axios.isAxiosError(caught) && caught.response?.status === 400)
@@ -158,6 +174,7 @@ async function confirmInsight(): Promise<void> {
   } finally {
     if (identity === user.value?.id && generation === requestGeneration) status.busy = false
   }
+  return null
 }
 export function useEcho() {
   return {

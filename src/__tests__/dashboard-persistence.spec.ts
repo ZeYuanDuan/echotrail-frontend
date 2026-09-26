@@ -21,6 +21,7 @@ vi.mock('@/lib/persistence', () => ({
 const identity = useIdentity()
 const dashboard = useDashboard()
 function snapshot(userId: string): DashboardSnapshot {
+  const multiSignalEventId = crypto.randomUUID()
   return {
     id: 1,
     userId,
@@ -49,7 +50,16 @@ function snapshot(userId: string): DashboardSnapshot {
       scores: {
         riasec: { R: 0, I: 80, A: 0, S: 0, E: 0, C: 0 },
         disc: { D: 0, I: 0, S: 0, C: 0 },
-        schein: { technical: 70 },
+        schein: {
+          technical: 73,
+          managerial: 62,
+          autonomy: 50,
+          security: 36,
+          entrepreneurial: 50,
+          service: 58,
+          challenge: 50,
+          lifestyle: 140,
+        },
       },
       evidence: [
         {
@@ -59,6 +69,38 @@ function snapshot(userId: string): DashboardSnapshot {
           dimension: 'I',
           strength: 8,
           evidenceQuote: '我很有成就感',
+        },
+        {
+          eventId: multiSignalEventId,
+          eventTitle: '跨部門改善流程',
+          framework: 'schein',
+          dimension: 'technical',
+          strength: 8,
+          evidenceQuote: '我把流程重新設計',
+        },
+        {
+          eventId: multiSignalEventId,
+          eventTitle: '跨部門改善流程',
+          framework: 'schein',
+          dimension: 'managerial',
+          strength: 6,
+          evidenceQuote: '也協調大家一起改',
+        },
+        {
+          eventId: multiSignalEventId,
+          eventTitle: '跨部門改善流程',
+          framework: 'schein',
+          dimension: 'service',
+          strength: 4,
+          evidenceQuote: '讓流程真正幫助使用者',
+        },
+        {
+          eventId: multiSignalEventId,
+          eventTitle: '跨部門改善流程',
+          framework: 'schein',
+          dimension: 'security',
+          strength: -8,
+          evidenceQuote: '不想只走最穩妥的方案',
         },
       ],
     },
@@ -80,14 +122,34 @@ it('renders only the saved snapshot and its profile, scores, and evidence', asyn
   await router.isReady()
   const wrapper = mount(DashboardView, { global: { plugins: [router] } })
   await flushPromises()
+  expect(wrapper.get('h1').classes()).toContain('page-title')
+  expect(wrapper.get('.page-subtitle').text()).toContain('從對話裡看見')
   expect(fetchDashboard).toHaveBeenCalledWith(id)
   expect(wrapper.text()).toContain('已保存的人物輪廓')
   expect(wrapper.text()).toContain('2')
+  expect(wrapper.text()).not.toContain('已保存版本')
   expect(wrapper.text()).not.toContain('假資料')
   await router.push('/dashboard/frameworks')
   await flushPromises()
-  expect(wrapper.text()).toContain('事件訊號預覽')
-  expect(wrapper.text()).toContain('80')
+  expect(router.currentRoute.value.path).toBe('/dashboard')
+  expect(wrapper.get('h1').text()).toBe('My Dashboard')
+  await router.push('/dashboard/north-star')
+  await flushPromises()
+  expect(wrapper.text()).toContain('事件如何形成這張圖')
+  expect(wrapper.text()).toContain('有效證據4筆')
+  expect(wrapper.text()).toContain('4/ 8')
+  expect(wrapper.text()).toContain('4 個錨點')
+  expect(wrapper.text()).toContain('專業能力強支持')
+  expect(wrapper.text()).toContain('管理整合中度支持')
+  expect(wrapper.text()).toContain('安全穩定強反向')
+  expect(wrapper.text()).not.toContain('+8')
+  expect(wrapper.text()).not.toContain('-8')
+  expect(wrapper.text()).toContain('跨部門改善流程')
+  expect(wrapper.get('.career-anchor-radar svg').attributes('aria-label')).toContain(
+    '生活整合 100 分',
+  )
+  expect(wrapper.get('.career-anchor-radar svg').attributes('aria-label')).not.toContain('140')
+  expect(wrapper.text()).not.toContain('分析框架')
   wrapper.unmount()
 })
 it('keeps the empty state when no run exists and ignores an old user response', async () => {

@@ -80,7 +80,7 @@ const accessibleSummary = computed(() =>
         class="career-radar-label"
       >
         <tspan :x="axis.x">{{ axis.label }}</tspan>
-        <tspan :x="axis.x" dy="16" class="career-radar-score">{{ axis.score }}分</tspan>
+        <tspan :x="axis.x" dy="16" class="career-radar-score">{{ axis.score }} 分</tspan>
       </text>
     </svg>
   </figure>
