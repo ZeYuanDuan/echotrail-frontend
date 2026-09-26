@@ -37,19 +37,6 @@ it('sends only recent chat context while preserving the conversation on screen',
           quote: '第 14 則訊息',
         },
         signals: [],
-        dashboard: {
-          persona: { headline: '人', summaries: ['甲'], quote: '第 14 則訊息' },
-          anchor: { primary: '專家', ability: ['甲'], motivation: ['乙'], values: ['丙'] },
-          keywords: [{ text: '甲', weight: 1 }],
-          patterns: [{ title: '甲', evidenceQuote: '第 14 則訊息' }],
-          northStar: {
-            primaryAnchor: '專家',
-            tagline: '甲',
-            desires: ['甲'],
-            bottomLine: '乙',
-            nextSteps: ['丙'],
-          },
-        },
       }
       echo.confirmedEvent.value = {
         id: crypto.randomUUID(),
@@ -83,19 +70,6 @@ it('keeps a generated preview out of confirmed state and clears it when chatting
       quote: '我很有成就感',
     },
     signals: [],
-    dashboard: {
-      persona: { headline: '人', summaries: ['甲'], quote: '我很有成就感' },
-      anchor: { primary: '專家', ability: ['甲'], motivation: ['乙'], values: ['丙'] },
-      keywords: [{ text: '甲', weight: 1 }],
-      patterns: [{ title: '甲', evidenceQuote: '我很有成就感' }],
-      northStar: {
-        primaryAnchor: '專家',
-        tagline: '甲',
-        desires: ['甲'],
-        bottomLine: '乙',
-        nextSteps: ['丙'],
-      },
-    },
   })
   await echo.generateInsight()
   expect(echo.state.insight?.card.title).toBe('成就')

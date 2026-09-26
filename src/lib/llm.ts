@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { DashboardProfile, InsightSignal } from '@/types/echo'
+import type { InsightSignal } from '@/types/echo'
 
 export interface LlmChatResponse {
   text: string
@@ -33,7 +33,6 @@ export interface InsightResponse {
     quote: string
   }
   signals: InsightSignal[]
-  dashboard: DashboardProfile
 }
 
 export async function generateInsightLlm(

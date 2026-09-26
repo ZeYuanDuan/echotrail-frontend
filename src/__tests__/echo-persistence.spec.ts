@@ -62,7 +62,6 @@ beforeEach(async () => {
   vi.mocked(generateInsightLlm).mockResolvedValue({
     card: structuredClone(card),
     signals: [{ framework: 'riasec', dimension: 'I', strength: 8, evidenceQuote: '有成就感' }],
-    dashboard: profile,
   })
   vi.mocked(saveEvent).mockImplementation(async (input) => saved(input))
 })
