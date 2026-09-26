@@ -954,6 +954,155 @@ textarea::placeholder {
   padding: 20px 0 0;
   border: none;
 }
+.trail-page {
+  --trail-line: #d9d4ca;
+  --trail-node: #3a6ea5;
+  --trail-selected: #d98239;
+}
+.trail-header {
+  margin-bottom: 30px;
+}
+.trail-header p {
+  max-width: 560px;
+  margin: 8px 0 0;
+  color: #6f6a62;
+  font-size: 14px;
+  line-height: 1.75;
+}
+.trail-explorer {
+  display: grid;
+  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+  align-items: start;
+  gap: 32px;
+  min-width: 0;
+}
+.trail-timeline-wrap {
+  min-width: 0;
+  margin: 0;
+}
+.trail-timeline {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.trail-timeline-item {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+.trail-timeline-item:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  top: 42px;
+  bottom: -2px;
+  left: 17px;
+  width: 2px;
+  background: var(--trail-line);
+}
+.trail-node {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  align-items: start;
+  justify-items: stretch;
+  width: 100%;
+  min-height: 72px;
+  padding: 5px 0 9px;
+  color: #6f6a62;
+  background: transparent;
+  border: 0;
+  border-radius: 12px;
+  text-align: left;
+  touch-action: manipulation;
+}
+.trail-node-marker {
+  z-index: 1;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  margin: 7px 0 0 2px;
+  color: #fff;
+  background: var(--trail-node);
+  border: 3px solid #f7f5f2;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--trail-node);
+}
+.trail-node-marker span {
+  font-size: 10px;
+  font-weight: 800;
+}
+.trail-node-copy {
+  display: grid;
+  justify-items: stretch;
+  min-width: 0;
+  padding: 8px 12px 10px;
+  border-bottom: 1px solid #dedbd4;
+}
+.trail-node-date-row {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+}
+.trail-node-separator {
+  display: inline;
+  color: #aaa39a;
+  font-size: 11px;
+}
+.trail-node.selected {
+  color: #2c2c2c;
+  background: transparent;
+  box-shadow: none;
+}
+.trail-node.selected .trail-node-marker {
+  background: var(--trail-selected);
+  box-shadow: 0 0 0 1px var(--trail-selected);
+}
+.trail-node.selected .trail-node-copy {
+  padding: 10px 12px;
+  border: 1px solid #e2d3c5;
+  border-left: 3px solid var(--trail-selected);
+  border-radius: 0 12px 12px 0;
+  background: #fff;
+}
+.trail-node-date {
+  font-size: 13px;
+  font-weight: 800;
+}
+.trail-node-time {
+  margin-top: 0;
+  color: #928b81;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.trail-node-title {
+  display: block;
+  max-width: none;
+  margin-top: 3px;
+  overflow: visible;
+  color: #4c4842;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.trail-event-detail {
+  width: 100%;
+  min-width: 0;
+  max-width: 940px;
+  margin: 0;
+}
+.trail-event-detail .echo-card {
+  margin-bottom: 0;
+}
+.trail-mobile-detail {
+  display: none;
+}
 .empty-state {
   text-align: center;
   padding: 70px 20px;
@@ -999,6 +1148,21 @@ textarea::placeholder {
   }
   .trail-side {
     width: 100px;
+  }
+  .trail-explorer {
+    display: block;
+  }
+  .trail-mobile-detail {
+    display: block;
+    width: auto;
+    max-width: none;
+    margin: 2px 0 24px 32px;
+  }
+  .trail-mobile-detail .echo-card {
+    border-top-left-radius: 4px;
+  }
+  .trail-desktop-detail {
+    display: none;
   }
   .northstar-card {
     flex-direction: column;
@@ -1137,6 +1301,97 @@ textarea::placeholder {
   }
   .trail-event-list {
     grid-template-columns: 1fr;
+  }
+  .trail-header {
+    margin-bottom: 22px;
+  }
+  .trail-timeline-wrap {
+    margin: 0 0 8px;
+    overflow: visible;
+    padding: 0;
+    scroll-snap-type: none;
+  }
+  .trail-timeline {
+    flex-direction: column;
+    width: 100%;
+    min-width: 0;
+    padding: 0;
+  }
+  .trail-timeline-item {
+    flex: none;
+    width: 100%;
+    min-width: 0;
+    scroll-snap-align: none;
+  }
+  .trail-timeline-item:not(:last-child)::after {
+    top: 42px;
+    bottom: -2px;
+    left: 17px;
+    width: 2px;
+    height: auto;
+  }
+  .trail-node {
+    grid-template-columns: 32px minmax(0, 1fr);
+    align-items: start;
+    justify-items: stretch;
+    min-height: 72px;
+    padding: 5px 0 9px;
+    text-align: left;
+  }
+  .trail-node.selected {
+    background: transparent;
+    box-shadow: none;
+  }
+  .trail-node-marker,
+  .trail-node.selected .trail-node-marker {
+    z-index: 1;
+    width: 30px;
+    height: 30px;
+    margin: 7px 0 0 2px;
+    border-width: 3px;
+  }
+  .trail-node-marker span,
+  .trail-node.selected .trail-node-marker span {
+    font-size: 10px;
+    font-weight: 800;
+  }
+  .trail-node-copy {
+    display: grid;
+    justify-items: stretch;
+    min-width: 0;
+    padding: 8px 12px 10px;
+    border-bottom: 1px solid #dedbd4;
+  }
+  .trail-node.selected .trail-node-copy {
+    padding: 10px 12px;
+    border: 1px solid #e2d3c5;
+    border-left: 3px solid var(--trail-selected);
+    border-radius: 0 12px 12px 0;
+    background: #fff;
+  }
+  .trail-node-date-row {
+    display: flex;
+    align-items: baseline;
+    justify-items: initial;
+    gap: 2px;
+  }
+  .trail-node-separator {
+    display: inline;
+    color: #aaa39a;
+    font-size: 11px;
+  }
+  .trail-node-time {
+    margin-top: 0;
+  }
+  .trail-node-title {
+    display: block;
+    max-width: none;
+    margin-top: 3px;
+    overflow: visible;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.5;
+    -webkit-line-clamp: unset;
   }
   .riasec-card,
   .disc-card,

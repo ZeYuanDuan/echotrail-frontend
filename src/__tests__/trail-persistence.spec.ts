@@ -4,7 +4,7 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 import { routes } from '@/router'
 import { useIdentity } from '@/composables/useIdentity'
 import { useTrail } from '@/composables/useTrail'
-import { fetchEvents, rebuildDashboard, resolveUser, type EventRecord } from '@/lib/persistence'
+import { fetchEvents, resolveUser, type EventRecord } from '@/lib/persistence'
 import TrailView from '@/views/TrailView.vue'
 vi.mock('@/lib/persistence', () => ({
   resolveUser: vi.fn(),
@@ -64,6 +64,23 @@ it('renders every confirmed event in the API order even on the same date', async
   ).toEqual([first.id, second.id])
   expect(wrapper.text()).toContain('第一張')
   expect(wrapper.text()).toContain('第二張')
+  expect(wrapper.find('.trail-node.selected').attributes('data-event-id')).toBe(second.id)
+  expect(wrapper.findAll('.trail-event-detail')).toHaveLength(2)
+  expect(wrapper.find('.trail-mobile-detail').text()).toContain('事件 2：第二張')
+  expect(wrapper.find('.trail-event-detail').text()).toContain('事件 2：第二張')
+
+  await wrapper.findAll('[data-test="trail-event"]')[0]!.trigger('click')
+
+  expect(wrapper.find('.trail-node.selected').attributes('data-event-id')).toBe(first.id)
+  expect(wrapper.find('.trail-mobile-detail').text()).toContain('事件 1：第一張')
+  expect(wrapper.find('.trail-event-detail').text()).toContain('事件 1：第一張')
+  expect(wrapper.find('.trail-event-detail').text()).not.toContain('第二張')
+  expect(wrapper.text()).not.toContain('更新至 Dashboard')
+
+  await wrapper.findAll('[data-test="trail-event"]')[0]!.trigger('click')
+
+  expect(wrapper.find('.trail-node.selected').exists()).toBe(false)
+  expect(wrapper.find('.trail-event-detail').exists()).toBe(false)
   wrapper.unmount()
 })
 it('clears old events before a new user request and ignores its late result', async () => {
@@ -95,50 +112,5 @@ it('shows an empty state and a retry on API failure', async () => {
   await trail.load(identity.user.value!.id)
   await flushPromises()
   expect(wrapper.text()).toContain('重試')
-  wrapper.unmount()
-})
-
-it('can rebuild Dashboard from a saved Trail event after the chat state is gone', async () => {
-  const id = identity.user.value!.id
-  vi.mocked(fetchEvents).mockResolvedValue([event(id, '已確認事件')])
-  vi.mocked(rebuildDashboard).mockResolvedValue({
-    id: 1,
-    userId: id,
-    createdAt: new Date().toISOString(),
-    sourceRevision: 1,
-    sourceEventCount: 1,
-    profile: {
-      persona: { headline: '輪廓', summaries: ['摘要'], quote: '原話' },
-      anchor: { primary: '專家', ability: ['甲'], motivation: ['乙'], values: ['丙'] },
-      keywords: [{ text: '甲', weight: 1 }],
-      patterns: [{ title: '模式', evidenceQuote: '原話' }],
-      northStar: {
-        primaryAnchor: '專家',
-        tagline: '方向',
-        desires: ['甲'],
-        bottomLine: '乙',
-        nextSteps: ['丙'],
-      },
-    },
-    frameworks: { scores: { riasec: {}, disc: {}, schein: {} }, evidence: [] },
-  })
-  const router = createRouter({ history: createMemoryHistory(), routes })
-  await router.push('/trail')
-  await router.isReady()
-  const wrapper = mount(TrailView, { global: { plugins: [router] } })
-  await flushPromises()
-  vi.mocked(rebuildDashboard).mockRejectedValueOnce(
-    Object.assign(new Error('conflict'), {
-      isAxiosError: true,
-      response: { status: 409, data: { error: '事件已變更，請重試。' } },
-    }),
-  )
-  await wrapper.get('[data-test="trail-rebuild"]').trigger('click')
-  await flushPromises()
-  expect(router.currentRoute.value.path).toBe('/trail')
-  expect(wrapper.text()).toContain('事件已變更，請重試。')
-  await wrapper.get('[data-test="trail-rebuild"]').trigger('click')
-  await vi.waitFor(() => expect(router.currentRoute.value.path).toBe('/dashboard'))
-  expect(rebuildDashboard).toHaveBeenCalledWith(id)
   wrapper.unmount()
 })
