@@ -1,97 +1,36 @@
-# EchoTrail 前端架構說明
+# EchoTrail 前端架構
 
-EchoTrail 是 Vue 單頁應用：使用者與 Gemini 對話、產生 Echo Card，再透過 My Trail 回顧事件，並在 Dashboard 查看有原句依據的分析。前端不包含種子事件、模擬回覆或固定分析結果；資料目前保存在瀏覽器，尚未串接正式帳號或雲端事件儲存。
+前端使用 Vue 3、TypeScript、Vue Router 與 Axios。正式流程先用暱稱向後端查找展示使用者，再由後端持有已確認事件與 Dashboard 快照。暱稱不是登入驗證；這個切片只供工程展示。
 
-## 1. 整體架構
+## 資料流
 
-```mermaid
-flowchart TD
-    Entry[main.ts] --> App[App.vue：應用外框與導覽]
-    App --> Router[Vue Router]
-    Router --> Home[HomeView：Gemini 對話]
-    Router --> Trail[TrailView：事件回顧]
-    Router --> Dashboard[DashboardView：洞察分析]
-    App --> Store[useEcho：共享狀態與操作]
-    Home --> Store
-    Trail --> Store
-    Store <--> Storage[localStorage：echotrail-v1]
-    Store --> LLM[lib/llm.ts]
-    LLM --> API[lib/api.ts：Axios]
-    API --> Server[echotrail-backend]
-    Server --> Gemini[Gemini API]
-    Home --> Scenarios[data/conversation-scenarios.ts]
+```text
+暱稱 → POST /api/users → 穩定 userId
+聊天 → POST /api/llm/chat → 暫存於記憶體
+Generate Insight → POST /api/llm/insight → 未儲存預覽
+確認 Echo Card → POST /api/events → PostgreSQL event + insight + 訊號
+My Trail → GET /api/events?userId=... → 所有已確認事件
+更新至 Dashboard → POST /api/dashboard/rebuild → 完整快照
+Dashboard → GET /api/dashboard?userId=... → 最新成功快照
 ```
 
-## 2. 技術與責任分層
+`src/lib/api.ts` 是共用 Axios instance；`src/lib/persistence.ts` 集中定義持久化型別與五個 API 呼叫。`src/composables/useIdentity.ts` 在 `echotrail-user-v1` 中只保存 `{id,name}`，重新載入時再次向後端查找暱稱。切換使用者會立即清除對話、卡片、Trail 與 Dashboard 狀態，並使舊請求的回應失效。`useEcho.ts` 只保存當次對話、草稿和未確認預覽；正式事件不寫入瀏覽器 localStorage。
 
-| 層級 | 位置 | 責任 |
+一段對話可產生多張卡片。`conversationId` 在 `+New` 時更換；「繼續此對話」保留它，並以 `segmentStartIndex` 標記下一張卡的第一則新訊息。產卡與確認只送該片段。確認請求以預覽建立時的 `clientEventId` 作冪等鍵；第一次送出時凍結 payload，回應結果不明時重試相同內容。只有明確 400 驗證錯誤才解除凍結，讓使用者修正卡片。
+
+`src/composables/useTrail.ts` 依使用者載入全部事件，保留後端 `createdAt,id` 排序。建立時間只用於顯示，不能從事件文字推日期。`src/composables/useDashboard.ts` 只載入已保存快照；重算由首頁或 My Trail 的獨立按鈕觸發，成功後才跳轉。頁面圖表只計算 CSS 長度和位置，不在瀏覽器重新聚合分數。框架分數是事件訊號預覽，非產品最終計分。
+若確認卡片後離開或重新載入，My Trail 的「更新至 Dashboard」仍可對所有已確認事件執行重算。重算進行中若先打開 Dashboard，成功的重算結果會取代稍早讀到的舊快照。
+
+## 路由與狀態
+
+| 路由 | 資料來源 | 空狀態 |
 | --- | --- | --- |
-| 應用啟動 | `src/main.ts` | 載入全域樣式、Router 與 App |
-| 外框與路由 | `src/App.vue`、`src/router/` | 導覽、新對話、清除本機資料與頁面切換 |
-| 頁面 | `src/views/` | 對話、事件回顧與 Dashboard 互動 |
-| 狀態與流程 | `src/composables/useEcho.ts` | Gemini 對話、產卡、事件儲存、持久化與錯誤處理 |
-| 情境腳本 | `src/data/conversation-scenarios.ts` | 三組正式的三輪快速體驗內容 |
-| 領域型別 | `src/types/echo.ts` | Message、TrailEvent、DashboardProfile 與 signals |
-| HTTP | `src/lib/api.ts`、`src/lib/llm.ts` | 共用連線設定與 LLM 請求／回應轉換 |
-| 共用元件 | `src/components/` | Echo Card、圖表與基礎 UI |
+| `/` | 當次聊天與未確認卡片預覽 | 對話起始畫面 |
+| `/trail` | `GET /api/events` | 尚無已確認事件 |
+| `/dashboard/:section?` | `GET /api/dashboard` | 尚無成功重算的快照 |
 
-## 3. 頁面
+所有非同步流程顯示載入與錯誤狀態，並阻止重複送出。Trail 與 Dashboard 在使用者切換後先清空，再讀取新使用者資料；舊回應不得蓋回。`src/mocks/echo.ts` 中的歷史示範事件不會出現在正式 Trail 或 Dashboard。
 
-| 路由 | 功能 |
-| --- | --- |
-| `/` | 直接使用 Gemini 對話；可自行輸入或選擇三輪情境，產卡後儲存至 Dashboard |
-| `/trail` | 顯示所有已儲存事件、預設最新一筆並切換事件詳情 |
-| `/dashboard` | 聚合 Gemini 回傳的 Persona、職涯錨、關鍵字、行為模式與框架 signals |
-| 其他路徑 | 重新導向首頁 |
+## 部署
 
-首頁的固定情境只負責帶入使用者訊息；每一輪回覆、Echo Card 與 Dashboard profile 都由 backend 呼叫 Gemini 產生。
-
-## 4. 狀態與資料模型
-
-`useEcho.ts` 在模組頂層建立共享的 reactive state，不使用 Pinia。
-
-| 狀態 | 內容 |
-| --- | --- |
-| `state.events` | 已儲存的 Gemini Echo Card |
-| `state.messages`、`state.draft` | 當前對話與草稿 |
-| `state.insight` | 本次 Gemini 產生、可能尚未儲存的 Echo Card |
-| `state.sourceId` | 當前已儲存卡片的事件 ID |
-| `status` | busy、storageError、error |
-| `allEvents` | 依 ID 排序的已儲存事件 |
-| `saved`、`dashboardReady` | 當前卡片是否已儲存，以及是否已完成 Dashboard 全量分析 |
-
-`TrailEvent` 產卡時先具備 Echo Card 與職涯錨分類；`dashboard` 與 `signals` 會在使用者點擊更新後才加入。Dashboard 不提供固定 fallback，尚未分析時由頁面顯示空狀態。
-
-## 5. 主要資料流
-
-1. `send()` 將目前逐字稿交給 `chatLlm()`，前端的 `echo` 角色在 API 邊界轉成 `model`。
-2. `POST /api/llm/chat` 成功後加入 Gemini 回覆；失敗時移除本次訊息並恢復草稿。
-3. `generateInsight()` 呼叫 `POST /api/llm/insight`，只取得 Echo Card 與本次事件的職涯錨分類；送出第 16 輪時會自動觸發相同流程。
-4. Echo Card 先儲存至本機事件集合；同一段對話再次產卡時會更新原事件。
-5. 使用者點擊更新後，`updateDashboard()` 把全部 Echo Card 送至 `POST /api/llm/dashboard`，全量重算 Dashboard profile 與 grounded signals。
-
-送出與產卡期間以 `busy` 防止重複操作。單則訊息最多 2,000 字，每段對話最多 16 輪。
-
-## 6. 持久化
-
-共享狀態透過深層 watch 寫入 localStorage 的 `echotrail-v1`。啟動時會驗證事件、對話、Dashboard 與 signals 結構；資料損壞或格式不符時回到空狀態。舊的 `echotrail-demo-v1` 不再讀取，因此既有示範事件不會出現在正式畫面。
-
-## 7. API 與部署邊界
-
-| 項目 | 現況 |
-| --- | --- |
-| 共用 base URL | `VITE_API_BASE_URL`，預設 `/api` |
-| 對話 API | `POST /llm/chat`，逾時 30 秒 |
-| 產卡 API | `POST /llm/insight`，只回傳 Echo Card 與職涯錨分類，逾時 60 秒 |
-| Dashboard API | `POST /llm/dashboard`，以全部 Echo Card 全量重算，逾時 60 秒 |
-| 本機代理 | Vite 將 `/api` 代理至 `echotrail-backend` |
-| 正式部署 | Firebase Hosting 將 `/api/**` 轉送至 Cloud Run |
-
-LLM 金鑰與 prompts 只存在 backend。前端的 `VITE_*` 設定會公開於瀏覽器，不可放置機密。
-
-## 8. 驗證
-
-- `src/__tests__/echo.spec.ts`：情境完整性、Gemini 預設流程、失敗恢復、產卡儲存與清除。
-- `src/__tests__/App.spec.ts`：未知路由導向首頁。
-- 程式變更執行 lint、type-check、format:check 與 Vitest；建置相關修改執行 build。
-- 真實 Gemini 穩定性由 backend 的 `npm run test:gemini` 驗證。
+`VITE_API_BASE_URL` 預設為 `/api`。本機 Vite proxy 將 API 導向獨立後端；Firebase Hosting 正式部署以 `/api/**` rewrite 導向 Cloud Run。`VITE_*` 會進入公開 bundle，Gemini 金鑰與資料庫密碼只存在後端。前端在 `dev` 經 Cloud Build 驗證與部署；合併前執行 `npm test`、`npm run lint`、`npm run type-check`、`npm run format:check`、`npm run build`。

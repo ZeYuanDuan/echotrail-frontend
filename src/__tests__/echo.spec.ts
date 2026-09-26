@@ -1,212 +1,108 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { nextTick } from 'vue'
+import { beforeEach, expect, it, vi } from 'vitest'
 import { useEcho } from '@/composables/useEcho'
-import { conversationScenarios } from '@/data/conversation-scenarios'
-import { chatLlm, generateDashboardLlm, generateInsightLlm } from '@/lib/llm'
-
-vi.mock('@/lib/llm', () => ({
-  chatLlm: vi.fn(),
-  generateInsightLlm: vi.fn(),
-  generateDashboardLlm: vi.fn(),
+import { useIdentity } from '@/composables/useIdentity'
+import { chatLlm, generateInsightLlm } from '@/lib/llm'
+import { resolveUser } from '@/lib/persistence'
+vi.mock('@/lib/llm', () => ({ chatLlm: vi.fn(), generateInsightLlm: vi.fn() }))
+vi.mock('@/lib/persistence', () => ({
+  resolveUser: vi.fn(),
+  saveEvent: vi.fn(),
+  fetchEvents: vi.fn(),
+  rebuildDashboard: vi.fn(),
+  fetchDashboard: vi.fn(),
 }))
-
+const identity = useIdentity()
 const echo = useEcho()
-const insightResponse = {
-  card: {
-    title: '需求探索成功',
-    happen: ['先訪談再設計'],
-    emotion: '有成就感',
-    like: '我擅長拆解問題',
-    dislike: '我不喜歡把需求直接當答案',
-    value: '先理解真正問題再行動',
-    quote: '我很有成就感',
-  },
-  careerAnchorType: '專家達人' as const,
-}
-const dashboardResponse = {
-  signals: [
-    {
-      framework: 'riasec' as const,
-      dimension: 'I',
-      strength: 8,
-      evidenceQuote: '先理解真正問題',
-    },
-  ],
-  dashboard: {
-    persona: {
-      headline: '先理解問題再行動的產品工作者',
-      summaries: ['擅長拆解問題'],
+beforeEach(async () => {
+  identity.switchUser()
+  localStorage.clear()
+  vi.resetAllMocks()
+  vi.mocked(resolveUser).mockResolvedValue({ id: crypto.randomUUID(), name: '測試者' })
+  await identity.enter('測試者')
+  vi.mocked(chatLlm).mockResolvedValue({ text: '你在意什麼？' })
+})
+it('sends only recent chat context while preserving the conversation on screen', async () => {
+  for (let index = 0; index < 17; index++) {
+    echo.state.draft = `第 ${index} 則訊息`
+    await echo.send()
+    if (index === 14) {
+      echo.state.insight = {
+        card: {
+          title: '卡',
+          happen: ['事'],
+          emotion: '喜',
+          like: '我喜歡',
+          dislike: '我討厭',
+          value: '價值',
+          quote: '第 14 則訊息',
+        },
+        signals: [],
+        dashboard: {
+          persona: { headline: '人', summaries: ['甲'], quote: '第 14 則訊息' },
+          anchor: { primary: '專家', ability: ['甲'], motivation: ['乙'], values: ['丙'] },
+          keywords: [{ text: '甲', weight: 1 }],
+          patterns: [{ title: '甲', evidenceQuote: '第 14 則訊息' }],
+          northStar: {
+            primaryAnchor: '專家',
+            tagline: '甲',
+            desires: ['甲'],
+            bottomLine: '乙',
+            nextSteps: ['丙'],
+          },
+        },
+      }
+      echo.confirmedEvent.value = {
+        id: crypto.randomUUID(),
+        userId: identity.user.value!.id,
+        conversationId: echo.conversationId.value,
+        messageStartSeq: 1,
+        messageEndSeq: 30,
+        createdAt: new Date().toISOString(),
+        source: 'conversation',
+        card: echo.state.insight.card,
+        signals: [],
+      }
+      echo.continueConversation()
+    }
+  }
+  expect(echo.state.messages).toHaveLength(34)
+  expect(vi.mocked(chatLlm).mock.calls.slice(-1)[0]?.[0]).toHaveLength(31)
+  expect(localStorage.getItem('echotrail-demo-v1')).toBeNull()
+})
+it('keeps a generated preview out of confirmed state and clears it when chatting continues', async () => {
+  echo.state.draft = '我很有成就感'
+  await echo.send()
+  vi.mocked(generateInsightLlm).mockResolvedValue({
+    card: {
+      title: '成就',
+      happen: ['完成'],
+      emotion: '開心',
+      like: '我喜歡',
+      dislike: '我討厭',
+      value: '價值',
       quote: '我很有成就感',
     },
-    anchor: {
-      primary: '專家達人',
-      ability: ['拆解問題'],
-      motivation: ['解決真正問題'],
-      values: ['先理解再行動'],
+    signals: [],
+    dashboard: {
+      persona: { headline: '人', summaries: ['甲'], quote: '我很有成就感' },
+      anchor: { primary: '專家', ability: ['甲'], motivation: ['乙'], values: ['丙'] },
+      keywords: [{ text: '甲', weight: 1 }],
+      patterns: [{ title: '甲', evidenceQuote: '我很有成就感' }],
+      northStar: {
+        primaryAnchor: '專家',
+        tagline: '甲',
+        desires: ['甲'],
+        bottomLine: '乙',
+        nextSteps: ['丙'],
+      },
     },
-    keywords: [
-      { text: '理解', weight: 5 },
-      { text: '問題', weight: 4 },
-      { text: '行動', weight: 3 },
-    ],
-    patterns: [{ title: '先釐清再行動', evidenceQuote: '先理解真正問題' }],
-    northStar: {
-      primaryAnchor: '專家達人',
-      tagline: '用理解創造價值',
-      desires: ['解決真正問題'],
-      bottomLine: '不把需求直接當答案',
-      nextSteps: ['提早進行需求探索'],
-    },
-  },
-}
-
-beforeEach(() => {
-  echo.reset()
-  localStorage.clear()
-})
-
-afterEach(() => {
-  vi.resetAllMocks()
-})
-
-describe('Gemini conversation workflow', () => {
-  it('provides three complete guided conversation scenarios', () => {
-    expect(conversationScenarios).toHaveLength(3)
-    expect(new Set(conversationScenarios.map((scenario) => scenario.id)).size).toBe(3)
-    expect(conversationScenarios.every((scenario) => scenario.turns.length === 3)).toBe(true)
-    expect(
-      conversationScenarios.every((scenario) => scenario.turns.every((turn) => turn.trim())),
-    ).toBe(true)
   })
-
-  it('uses Gemini by default, sends previous turns, and persists the conversation', async () => {
-    vi.mocked(chatLlm)
-      .mockResolvedValueOnce({ text: '你在意哪個部分？' })
-      .mockResolvedValueOnce({ text: '這件事讓你看見了什麼？' })
-
-    echo.state.draft = '第一段經驗'
-    await echo.send()
-    echo.state.draft = '我最在意判斷有依據'
-    await echo.send()
-
-    expect(vi.mocked(chatLlm).mock.calls[1]?.[0]).toEqual([
-      { role: 'user', text: '第一段經驗' },
-      { role: 'echo', text: '你在意哪個部分？' },
-      { role: 'user', text: '我最在意判斷有依據' },
-    ])
-    expect(JSON.parse(localStorage.getItem('echotrail-v1')!).messages).toHaveLength(4)
-    expect(localStorage.getItem('echotrail-demo-v1')).toBeNull()
-  })
-
-  it('restores failed input and reports a Gemini connection error', async () => {
-    vi.mocked(chatLlm).mockRejectedValue(new Error('offline'))
-    echo.state.draft = '想保留的輸入'
-
-    await echo.send()
-
-    expect(echo.state.messages).toHaveLength(0)
-    expect(echo.state.draft).toBe('想保留的輸入')
-    expect(echo.status.error).toBeTruthy()
-    expect(echo.status.busy).toBe(false)
-  })
-
-  it('rejects a message when the conversation would exceed the backend limit', async () => {
-    echo.state.messages = Array.from({ length: 8 }, (_, index) => ({
-      role: index % 2 === 0 ? ('user' as const) : ('echo' as const),
-      text: '字'.repeat(1_999),
-    }))
-    echo.state.draft = '字'.repeat(9)
-
-    await echo.send()
-
-    expect(chatLlm).not.toHaveBeenCalled()
-    expect(echo.state.draft).toBe('字'.repeat(9))
-    expect(echo.status.error).toContain('總長最多 16,000 字')
-  })
-
-  it('rejects a message longer than the backend per-message limit', async () => {
-    echo.state.draft = '字'.repeat(801)
-
-    await echo.send()
-
-    expect(chatLlm).not.toHaveBeenCalled()
-    expect(echo.state.draft).toHaveLength(801)
-    expect(echo.status.error).toContain('每則訊息最多 800 字')
-  })
-
-  it('keeps a generated card as a preview until Dashboard is updated', async () => {
-    vi.mocked(chatLlm).mockResolvedValue({ text: '你做對了哪個判斷？' })
-    vi.mocked(generateInsightLlm).mockResolvedValue(insightResponse)
-    vi.mocked(generateDashboardLlm).mockResolvedValue(dashboardResponse)
-    echo.state.draft = '我很有成就感，因為我會先理解真正問題'
-
-    await echo.send()
-    await echo.generateInsight()
-
-    expect(echo.state.insight?.title).toBe('需求探索成功')
-    expect(echo.allEvents.value).toHaveLength(0)
-    expect(JSON.parse(localStorage.getItem('echotrail-v1')!).events).toHaveLength(0)
-
-    await echo.updateDashboard()
-    await nextTick()
-
-    expect(echo.state.insight?.id).toBe(1)
-    expect(echo.state.insight?.title).toBe('需求探索成功')
-    expect(echo.state.insight?.dashboard?.anchor.primary).toBe('專家達人')
-    expect(echo.allEvents.value).toHaveLength(1)
-    expect(JSON.parse(localStorage.getItem('echotrail-v1')!).events).toHaveLength(1)
-  })
-
-  it('continues the conversation after an insight preview and allows regenerating it', async () => {
-    vi.mocked(chatLlm).mockResolvedValue({ text: '請繼續說說看。' })
-    vi.mocked(generateInsightLlm).mockResolvedValue(insightResponse)
-    echo.state.draft = '我很有成就感'
-
-    await echo.send()
-    await echo.generateInsight()
-
-    expect(echo.state.insight).not.toBeNull()
-
-    echo.state.draft = '我還想補充新的對話'
-    await echo.send()
-
-    expect(echo.state.insight).toBeNull()
-    expect(echo.allEvents.value).toHaveLength(0)
-
-    await echo.generateInsight()
-
-    expect(generateInsightLlm).toHaveBeenCalledTimes(2)
-    expect(echo.state.insight?.title).toBe('需求探索成功')
-  })
-
-  it('automatically generates an Echo Card on the sixteenth user turn', async () => {
-    echo.state.messages = Array.from({ length: 30 }, (_, index) => ({
-      role: (index % 2 === 0 ? 'user' : 'echo') as 'user' | 'echo',
-      text: `第 ${index + 1} 則`,
-    }))
-    echo.state.draft = '第十六輪內容'
-    vi.mocked(generateInsightLlm).mockResolvedValue(insightResponse)
-
-    await echo.send()
-
-    expect(chatLlm).not.toHaveBeenCalled()
-    expect(generateInsightLlm).toHaveBeenCalledOnce()
-    expect(echo.state.messages[echo.state.messages.length - 1]).toEqual({
-      role: 'user',
-      text: '第十六輪內容',
-    })
-    expect(echo.state.insight?.title).toBe('需求探索成功')
-  })
-
-  it('clears all generated data without restoring seed events', async () => {
-    vi.mocked(chatLlm).mockResolvedValue({ text: '繼續說說看。' })
-    echo.state.draft = '一段對話'
-    await echo.send()
-
-    echo.reset()
-
-    expect(echo.state.messages).toHaveLength(0)
-    expect(echo.state.events).toHaveLength(0)
-    expect(echo.allEvents.value).toHaveLength(0)
-  })
+  await echo.generateInsight()
+  expect(echo.state.insight?.card.title).toBe('成就')
+  expect(echo.confirmedEvent.value).toBeNull()
+  echo.state.draft = '補充一段對話'
+  await echo.send()
+  expect(echo.state.messages).toHaveLength(4)
+  expect(echo.state.insight).toBeNull()
+  expect(echo.confirmedEvent.value).toBeNull()
 })

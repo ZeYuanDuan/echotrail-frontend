@@ -1,315 +1,194 @@
-import { computed, reactive, watch } from 'vue'
+import { reactive, ref, watch } from 'vue'
 import axios from 'axios'
-import { chatLlm, generateDashboardLlm, generateInsightLlm } from '@/lib/llm'
-import type { DashboardProfile, Message, TrailEvent } from '@/types/echo'
+import { chatLlm, generateInsightLlm, type InsightResponse } from '@/lib/llm'
+import {
+  saveEvent,
+  type CardFields,
+  type ConfirmEventInput,
+  type EditedField,
+  type EventRecord,
+} from '@/lib/persistence'
+import { useIdentity } from '@/composables/useIdentity'
+import type { Message } from '@/types/echo'
 
-const STORAGE_KEY = 'echotrail-v1'
-const LEGACY_STORAGE_KEY = 'echotrail-demo-v1'
 export const MAX_MESSAGE_LENGTH = 800
-const MAX_MESSAGE_COUNT = 31
-const MAX_CONVERSATION_LENGTH = 16_000
 
-interface EchoState {
-  events: TrailEvent[]
-  messages: Message[]
-  draft: string
-  insight: TrailEvent | null
-  sourceId: number | null
-}
+const { user } = useIdentity()
+const state = reactive<{ messages: Message[]; draft: string; insight: InsightResponse | null }>({
+  messages: [],
+  draft: '',
+  insight: null,
+})
+const status = reactive({ busy: false, error: '' })
+const conversationId = ref(crypto.randomUUID())
+const segmentStartIndex = ref(0)
+const clientEventId = ref<string | null>(null)
+const confirmedEvent = ref<EventRecord | null>(null)
+const pendingSavePayload = ref<ConfirmEventInput | null>(null)
+const editedFields = ref<EditedField[]>([])
+let requestGeneration = 0
 
-function initialState(): EchoState {
-  return { events: [], messages: [], draft: '', insight: null, sourceId: null }
-}
-
-function isStringArray(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((item) => typeof item === 'string')
-}
-
-function isDashboardProfile(value: unknown): value is DashboardProfile {
-  if (!value || typeof value !== 'object') return false
-  const profile = value as Record<string, unknown>
-  const persona = profile.persona as Record<string, unknown> | undefined
-  const anchor = profile.anchor as Record<string, unknown> | undefined
-  const northStar = profile.northStar as Record<string, unknown> | undefined
-
-  return (
-    !!persona &&
-    typeof persona.headline === 'string' &&
-    isStringArray(persona.summaries) &&
-    typeof persona.quote === 'string' &&
-    !!anchor &&
-    typeof anchor.primary === 'string' &&
-    isStringArray(anchor.ability) &&
-    isStringArray(anchor.motivation) &&
-    isStringArray(anchor.values) &&
-    Array.isArray(profile.keywords) &&
-    profile.keywords.every(
-      (keyword) =>
-        !!keyword &&
-        typeof keyword === 'object' &&
-        typeof (keyword as Record<string, unknown>).text === 'string' &&
-        typeof (keyword as Record<string, unknown>).weight === 'number',
-    ) &&
-    Array.isArray(profile.patterns) &&
-    profile.patterns.every(
-      (pattern) =>
-        !!pattern &&
-        typeof pattern === 'object' &&
-        typeof (pattern as Record<string, unknown>).title === 'string' &&
-        typeof (pattern as Record<string, unknown>).evidenceQuote === 'string',
-    ) &&
-    !!northStar &&
-    typeof northStar.primaryAnchor === 'string' &&
-    typeof northStar.tagline === 'string' &&
-    isStringArray(northStar.desires) &&
-    typeof northStar.bottomLine === 'string' &&
-    isStringArray(northStar.nextSteps)
-  )
-}
-
-function isEvent(value: unknown): value is TrailEvent {
-  if (!value || typeof value !== 'object') return false
-  const event = value as Record<string, unknown>
-  return (
-    typeof event.id === 'number' &&
-    Number.isFinite(event.id) &&
-    typeof event.quarter === 'number' &&
-    ['title', 'date', 'emotion', 'like', 'dislike', 'value', 'quote'].every(
-      (key) => typeof event[key] === 'string',
-    ) &&
-    isStringArray(event.happen) &&
-    typeof event.careerAnchorType === 'string' &&
-    (event.signals === undefined ||
-      (Array.isArray(event.signals) &&
-        event.signals.every(
-          (signal) =>
-            !!signal &&
-            typeof signal === 'object' &&
-            ['riasec', 'disc', 'schein'].includes(
-              String((signal as Record<string, unknown>).framework),
-            ) &&
-            typeof (signal as Record<string, unknown>).dimension === 'string' &&
-            typeof (signal as Record<string, unknown>).strength === 'number' &&
-            typeof (signal as Record<string, unknown>).evidenceQuote === 'string',
-        ))) &&
-    (event.dashboard === undefined || isDashboardProfile(event.dashboard))
-  )
-}
-
-function restore(): EchoState {
-  try {
-    localStorage.removeItem(LEGACY_STORAGE_KEY)
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return initialState()
-    const parsed: unknown = JSON.parse(raw)
-    if (!parsed || typeof parsed !== 'object') return initialState()
-    const saved = parsed as Record<string, unknown>
-    if (
-      !Array.isArray(saved.events) ||
-      !saved.events.every(isEvent) ||
-      !Array.isArray(saved.messages) ||
-      !saved.messages.every(
-        (message: unknown): message is Message =>
-          !!message &&
-          typeof message === 'object' &&
-          'role' in message &&
-          'text' in message &&
-          (message.role === 'user' || message.role === 'echo') &&
-          typeof message.text === 'string',
-      ) ||
-      typeof saved.draft !== 'string' ||
-      (saved.insight !== null && !isEvent(saved.insight)) ||
-      (saved.sourceId !== null && typeof saved.sourceId !== 'number')
-    ) {
-      return initialState()
-    }
-
-    return {
-      events: saved.events,
-      messages: saved.messages,
-      draft: saved.draft,
-      insight: saved.insight,
-      sourceId: saved.sourceId,
-    }
-  } catch {
-    return initialState()
-  }
-}
-
-const state = reactive<EchoState>(restore())
-const status = reactive({ busy: false, storageError: false, error: '' })
-
-watch(
-  state,
-  () => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
-      status.storageError = false
-    } catch {
-      status.storageError = true
-    }
-  },
-  { deep: true, flush: 'sync' },
-)
-
-const allEvents = computed(() => [...state.events].sort((a, b) => a.id - b.id))
-const saved = computed(
-  () =>
-    !!state.insight &&
-    state.events.some((event) => JSON.stringify(event) === JSON.stringify(state.insight)),
-)
-const dashboardReady = computed(() => !!state.insight?.dashboard)
-const nextEventId = () => Math.max(0, ...state.events.map((event) => event.id)) + 1
-
-function newChat() {
-  if (status.busy) return
-  status.error = ''
+function reset(): void {
+  requestGeneration++
   state.messages = []
   state.draft = ''
   state.insight = null
-  state.sourceId = null
+  status.busy = false
+  status.error = ''
+  conversationId.value = crypto.randomUUID()
+  segmentStartIndex.value = 0
+  clientEventId.value = null
+  confirmedEvent.value = null
+  pendingSavePayload.value = null
+  editedFields.value = []
 }
-
-function markEventViewed(id: number) {
-  const event = state.events.find((item) => item.id === id)
-  if (!event?.isNew) return
-
-  event.isNew = false
-  if (state.insight?.id === id) state.insight.isNew = false
+watch(() => user.value?.id, reset, { flush: 'sync' })
+function newChat(): void {
+  if (!status.busy) reset()
 }
-
-async function send() {
+function continueConversation(): void {
+  if (status.busy || !confirmedEvent.value) return
+  segmentStartIndex.value = state.messages.length
+  state.insight = null
+  confirmedEvent.value = null
+  clientEventId.value = null
+  pendingSavePayload.value = null
+  editedFields.value = []
+  status.error = ''
+}
+function editCard(field: EditedField, value: string): void {
+  if (!state.insight || confirmedEvent.value || pendingSavePayload.value) return
+  if (field === 'happen')
+    state.insight.card.happen = value
+      .split('\n')
+      .map((item) => item.trim())
+      .filter(Boolean)
+  else state.insight.card[field] = value
+  if (!editedFields.value.includes(field)) editedFields.value.push(field)
+}
+function errorMessage(caught: unknown, fallback: string): string {
+  const data: unknown = axios.isAxiosError(caught) ? caught.response?.data : null
+  return data && typeof data === 'object' && 'error' in data && typeof data.error === 'string'
+    ? data.error
+    : fallback
+}
+async function send(): Promise<void> {
   const text = state.draft.trim()
-  if (!text || status.busy) return
-  const conversationLength = state.messages.reduce(
-    (sum, message) => sum + message.text.length,
-    text.length,
-  )
-  if (
-    text.length > MAX_MESSAGE_LENGTH ||
-    state.messages.length >= MAX_MESSAGE_COUNT ||
-    conversationLength > MAX_CONVERSATION_LENGTH
-  ) {
-    status.error =
-      '每則訊息最多 800 字、每段對話最多 31 則且總長最多 16,000 字；請縮短文字或點 ＋ New。'
+  if (!user.value || !text || status.busy || confirmedEvent.value) return
+  if (text.length > MAX_MESSAGE_LENGTH || state.messages.length - segmentStartIndex.value >= 30) {
+    status.error = '本張卡片的對話已達長度限制，請先產生洞察或點 ＋ New。'
     return
   }
-
-  status.error = ''
+  const identity = user.value.id
+  const generation = requestGeneration
   const previousInsight = state.insight
+  const previousClientEventId = clientEventId.value
+  const previousPendingSavePayload = pendingSavePayload.value
+  const previousEditedFields = [...editedFields.value]
+  status.error = ''
   state.messages.push({ role: 'user', text })
   state.draft = ''
   state.insight = null
+  clientEventId.value = null
+  pendingSavePayload.value = null
+  editedFields.value = []
   status.busy = true
   try {
-    if (state.messages.filter((message) => message.role === 'user').length >= 16) {
-      await requestInsight()
-      return
+    const { text: reply } = await chatLlm(state.messages.slice(-31))
+    if (identity === user.value?.id && generation === requestGeneration)
+      state.messages.push({ role: 'echo', text: reply })
+  } catch (caught) {
+    if (identity === user.value?.id && generation === requestGeneration) {
+      state.messages.pop()
+      state.draft = text
+      state.insight = previousInsight
+      clientEventId.value = previousClientEventId
+      pendingSavePayload.value = previousPendingSavePayload
+      editedFields.value = previousEditedFields
+      status.error = errorMessage(caught, '暫時無法取得回覆，請重試。')
     }
-    const { text: reply } = await chatLlm([...state.messages])
-    state.messages.push({ role: 'echo', text: reply })
-  } catch (error) {
-    state.messages.pop()
-    state.draft = text
-    state.insight = previousInsight
-    const data: unknown = axios.isAxiosError(error) ? error.response?.data : null
-    status.error =
-      data && typeof data === 'object' && 'error' in data && typeof data.error === 'string'
-        ? data.error
-        : '暫時無法取得回覆，請確認對話服務已啟動，再按送出重試。'
   } finally {
-    status.busy = false
+    if (identity === user.value?.id && generation === requestGeneration) status.busy = false
   }
 }
-
-async function requestInsight() {
-  const result = await generateInsightLlm([...state.messages])
-  const now = new Date()
-  state.insight = {
-    id: state.sourceId ?? nextEventId(),
-    date: new Intl.DateTimeFormat('zh-TW', { month: 'numeric', day: 'numeric' }).format(now),
-    quarter: Math.floor(now.getMonth() / 3) + 1,
-    ...result.card,
-    careerAnchorType: result.careerAnchorType,
-    isNew: true,
-  }
-}
-
-async function generateInsight() {
-  if (status.busy || !state.messages.some((message) => message.role === 'user') || state.insight)
+async function generateInsight(): Promise<void> {
+  const segment = state.messages.slice(segmentStartIndex.value)
+  if (
+    !user.value ||
+    status.busy ||
+    state.insight ||
+    segment.length < 2 ||
+    segment[segment.length - 1]?.role !== 'echo'
+  )
     return
-
-  status.error = ''
+  const identity = user.value.id
+  const generation = requestGeneration
   status.busy = true
-  try {
-    await requestInsight()
-  } catch (error) {
-    const data: unknown = axios.isAxiosError(error) ? error.response?.data : null
-    status.error =
-      data && typeof data === 'object' && 'error' in data && typeof data.error === 'string'
-        ? data.error
-        : '暫時無法產生洞察，請保留對話後再試一次。'
-  } finally {
-    status.busy = false
-  }
-}
-
-async function updateDashboard() {
-  if (!state.insight || status.busy) return false
   status.error = ''
-  status.busy = true
   try {
-    const events = [
-      ...state.events.filter((event) => event.id !== state.insight!.id),
-      { ...state.insight },
-    ]
-    const result = await generateDashboardLlm(events)
-    state.insight = {
-      ...state.insight,
-      signals: result.signals,
-      dashboard: result.dashboard,
+    const insight = await generateInsightLlm(segment)
+    if (identity === user.value?.id && generation === requestGeneration) {
+      state.insight = insight
+      clientEventId.value = crypto.randomUUID()
+      editedFields.value = []
     }
-    state.events = [
-      ...state.events.filter((event) => event.id !== state.insight!.id),
-      { ...state.insight },
-    ]
-    return true
-  } catch (error) {
-    const data: unknown = axios.isAxiosError(error) ? error.response?.data : null
-    status.error =
-      data && typeof data === 'object' && 'error' in data && typeof data.error === 'string'
-        ? data.error
-        : '暫時無法更新 Dashboard，Echo Card 已保留，請稍後再試。'
-    return false
+  } catch (caught) {
+    if (identity === user.value?.id && generation === requestGeneration)
+      status.error = errorMessage(caught, '暫時無法產生洞察，請重試。')
   } finally {
-    status.busy = false
+    if (identity === user.value?.id && generation === requestGeneration) status.busy = false
   }
 }
-
-function reset() {
-  if (status.busy) return
+async function confirmInsight(): Promise<void> {
+  if (!user.value || !state.insight || !clientEventId.value || status.busy || confirmedEvent.value)
+    return
+  const identity = user.value.id
+  const generation = requestGeneration
+  status.busy = true
   status.error = ''
-  Object.assign(state, initialState())
+  const payload = pendingSavePayload.value ?? {
+    userId: identity,
+    clientEventId: clientEventId.value,
+    conversationId: conversationId.value,
+    messages: state.messages.slice(segmentStartIndex.value).map(({ role, text }) => ({
+      role: role === 'echo' ? ('model' as const) : ('user' as const),
+      text,
+    })),
+    card: { ...state.insight.card, happen: [...state.insight.card.happen] } as CardFields,
+    editedFields: [...editedFields.value],
+    signals: state.insight.signals.map((signal) => ({ ...signal })),
+  }
+  pendingSavePayload.value = payload
   try {
-    localStorage.removeItem(STORAGE_KEY)
-    status.storageError = false
-  } catch {
-    status.storageError = true
+    const result = await saveEvent(payload)
+    if (identity === user.value?.id && generation === requestGeneration)
+      confirmedEvent.value = result
+  } catch (caught) {
+    if (identity === user.value?.id && generation === requestGeneration) {
+      if (axios.isAxiosError(caught) && caught.response?.status === 400)
+        pendingSavePayload.value = null
+      status.error = errorMessage(caught, '暫時無法儲存卡片，請重試。')
+    }
+  } finally {
+    if (identity === user.value?.id && generation === requestGeneration) status.busy = false
   }
 }
-
 export function useEcho() {
   return {
     state,
     status,
-    allEvents,
-    saved,
-    dashboardReady,
+    conversationId,
+    segmentStartIndex,
+    clientEventId,
+    confirmedEvent,
+    pendingSavePayload,
+    editedFields,
     newChat,
-    markEventViewed,
+    continueConversation,
+    editCard,
     send,
     generateInsight,
-    updateDashboard,
+    confirmInsight,
     reset,
   }
 }

@@ -1,34 +1,45 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import CareerAnchorRadar from '@/components/dashboard/CareerAnchorRadar.vue'
-import { Button } from '@/components/ui/button'
-import { SelectionButton } from '@/components/ui/selection-button'
-import { useEcho } from '@/composables/useEcho'
+import { useDashboard } from '@/composables/useDashboard'
+import { useIdentity } from '@/composables/useIdentity'
 import type { InsightFramework } from '@/types/echo'
 
 const route = useRoute()
-const { allEvents } = useEcho()
+const { user } = useIdentity()
+const { snapshot, busy, error, load } = useDashboard()
 const selectedFramework = ref<InsightFramework>('riasec')
 const section = computed(() => String(route.params.section ?? 'overview'))
-
+onMounted(() => {
+  if (user.value) void load(user.value.id)
+})
+function retry() {
+  if (user.value) void load(user.value.id)
+}
+const profile = computed(() => snapshot.value?.profile ?? null)
+const anchorSummary = computed(
+  () => profile.value?.anchor ?? { primary: '', ability: [], motivation: [], values: [] },
+)
+const keywords = computed(() => profile.value?.keywords ?? [])
+const patterns = computed(() => profile.value?.patterns ?? [])
 const frameworkMeta: Record<
   InsightFramework,
   { title: string; description: string; dimensions: Record<string, string> }
 > = {
   riasec: {
     title: 'RIASEC 工作興趣',
-    description: '從事件裡反覆出現的工作偏好，觀察你傾向投入哪類問題。',
+    description: '事件訊號預覽：從已確認事件觀察工作偏好。',
     dimensions: { R: '實作', I: '研究', A: '創意', S: '助人', E: '推動', C: '組織' },
   },
   disc: {
     title: 'DISC 行動風格',
-    description: '不是性格測驗結果，而是你在這些事件中展現的互動與決策傾向。',
+    description: '事件訊號預覽：從已確認事件觀察互動與決策傾向。',
     dimensions: { D: '主導', I: '影響', S: '穩定', C: '謹慎' },
   },
   schein: {
     title: '職涯錨點',
-    description: '從你不願妥協的判斷中，找出目前最清楚的職涯驅動力。',
+    description: '事件訊號預覽：從已確認事件觀察職涯驅動力。',
     dimensions: {
       technical: '專業能力',
       managerial: '管理整合',
@@ -41,45 +52,19 @@ const frameworkMeta: Record<
     },
   },
 }
-
-const analyzedEvents = computed(() => allEvents.value)
-const dashboardEvent = computed(() =>
-  [...allEvents.value].reverse().find((event) => event.dashboard),
+const chartRows = computed(() =>
+  Object.entries(frameworkMeta[selectedFramework.value].dimensions).map(([dimension, label]) => ({
+    dimension,
+    label,
+    score: snapshot.value?.frameworks.scores[selectedFramework.value][dimension] ?? 0,
+  })),
 )
-const profile = computed(() => dashboardEvent.value?.dashboard ?? null)
-const anchorSummary = computed(() => {
-  const anchor = profile.value?.anchor
-  return {
-    primary: anchor?.primary ?? '',
-    ability: anchor?.ability ?? [],
-    motivation: anchor?.motivation ?? [],
-    values: anchor?.values ?? [],
-  }
-})
-const signals = computed(() => dashboardEvent.value?.signals ?? [])
-
-const keywords = computed(() => profile.value?.keywords ?? [])
-const patterns = computed(() => profile.value?.patterns ?? [])
-
-const chartRows = computed(() => {
-  const framework = selectedFramework.value
-  return Object.entries(frameworkMeta[framework].dimensions).map(([dimension, label]) => {
-    const matching = signals.value.filter(
-      (signal) => signal.framework === framework && signal.dimension === dimension,
-    )
-    const score = matching.length
-      ? Math.round(
-          (matching.reduce((sum, signal) => sum + signal.strength, 0) / matching.length) * 10,
-        )
-      : 0
-    return { dimension, label, score }
-  })
-})
 const strongest = computed(() => [...chartRows.value].sort((a, b) => b.score - a.score)[0])
-const selectedSignals = computed(() =>
-  (dashboardEvent.value?.signals ?? [])
-    .filter((signal) => signal.framework === selectedFramework.value)
-    .map((signal) => ({ ...signal, eventTitle: dashboardEvent.value?.title ?? '' })),
+const selectedSignals = computed(
+  () =>
+    snapshot.value?.frameworks.evidence.filter(
+      (signal) => signal.framework === selectedFramework.value,
+    ) ?? [],
 )
 const discPosition = computed(() => {
   const score = (dimension: string) =>
@@ -90,31 +75,20 @@ const discPosition = computed(() => {
     top: `${clamp(50 + (score('C') - score('I')) * 0.38)}%`,
   }
 })
-
-const northStarAxes = computed(() => {
-  const labels = Object.entries(frameworkMeta.schein.dimensions)
-  return labels.map(([dimension, label]) => {
-    const matching = signals.value.filter(
-      (signal) => signal.framework === 'schein' && signal.dimension === dimension,
-    )
-    return {
-      label,
-      score: matching.length
-        ? Math.round(
-            (matching.reduce((sum, signal) => sum + signal.strength, 0) / matching.length) * 10,
-          )
-        : 0,
-    }
-  })
-})
+const northStarAxes = computed(() =>
+  Object.entries(frameworkMeta.schein.dimensions).map(([dimension, label]) => ({
+    label,
+    score: snapshot.value?.frameworks.scores.schein[dimension] ?? 0,
+  })),
+)
 </script>
 
 <template>
   <main class="dashboard-content generated-dashboard">
-    <header class="dashboard-hero page-header">
+    <header class="dashboard-hero">
       <div>
-        <h1 class="page-title">{{ section === 'overview' ? 'My Dashboard' : '你的職涯洞察' }}</h1>
-        <p class="page-subtitle">
+        <h1 class="h1">{{ section === 'overview' ? 'My Dashboard' : '你的職涯洞察' }}</h1>
+        <p>
           {{
             section === 'overview'
               ? '從對話裡看見你的能力、動機、價值標準與不變的職涯追求。'
@@ -123,23 +97,28 @@ const northStarAxes = computed(() => {
         </p>
       </div>
       <div class="signal-count" aria-label="已分析事件數">
-        <strong>{{ analyzedEvents.length }}</strong
+        <strong>{{ snapshot?.sourceEventCount ?? 0 }}</strong
         ><span>筆對話事件</span>
       </div>
     </header>
 
-    <section v-if="!dashboardEvent || !profile" class="dashboard-empty">
+    <div v-if="busy" role="status">正在讀取 Dashboard…</div>
+    <div v-else-if="error" role="alert">
+      <p>{{ error }}</p>
+      <button class="update-btn" @click="retry">重試</button>
+    </div>
+    <section v-else-if="!snapshot || !profile" class="dashboard-empty">
       <div class="empty-orbit" aria-hidden="true"></div>
       <h2>第一個洞察還在等你</h2>
       <p>完成一段 Gemini 對話、產生 Echo Card，再按「更新至 Dashboard」。</p>
-      <div class="mt-6">
-        <Button as-child variant="echo" size="lg">
-          <RouterLink to="/">回到對話</RouterLink>
-        </Button>
-      </div>
+      <RouterLink to="/" class="dashboard-link">回到對話</RouterLink>
     </section>
 
     <template v-else>
+      <p class="text-muted-foreground">
+        已保存版本 · {{ snapshot.sourceEventCount }} 筆事件 ·
+        {{ new Date(snapshot.createdAt).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' }) }}
+      </p>
       <div v-if="section === 'overview'" class="dashboard-overview">
         <RouterLink to="/dashboard/persona" class="overview-card persona-overview">
           <div class="overview-heading">
@@ -317,15 +296,21 @@ const northStarAxes = computed(() => {
       </section>
 
       <template v-else>
+        <p class="text-muted-foreground">
+          已保存版本 · {{ snapshot.sourceEventCount }} 筆事件 ·
+          {{ new Date(snapshot.createdAt).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' }) }}
+        </p>
         <nav class="framework-tabs" aria-label="選擇分析框架">
-          <SelectionButton
+          <button
             v-for="(meta, framework) in frameworkMeta"
             :key="framework"
-            :selected="selectedFramework === framework"
+            type="button"
+            :class="{ active: selectedFramework === framework }"
+            :aria-pressed="selectedFramework === framework"
             @click="selectedFramework = framework"
           >
             {{ meta.title }}
-          </SelectionButton>
+          </button>
         </nav>
         <section class="framework-stage" :aria-labelledby="`${selectedFramework}-title`">
           <div class="chart-panel">
@@ -362,17 +347,18 @@ const northStarAxes = computed(() => {
                 <span class="signal-score">{{ row.score || '—' }}</span>
               </div>
             </div>
-            <p v-if="analyzedEvents.length < 3" class="unlock-note">
-              目前是 {{ analyzedEvents.length }}/3 筆的前置預覽；累積三筆後再作為穩定趨勢解讀。
+            <p v-if="snapshot && snapshot.sourceEventCount < 3" class="unlock-note">
+              目前是 {{ snapshot?.sourceEventCount ?? 0 }}/3
+              筆的前置預覽；累積三筆後再作為穩定趨勢解讀。
             </p>
           </div>
           <aside class="evidence-ledger">
-            <h2>分數從哪裡來</h2>
+            <h2>事件訊號預覽 · 分數從哪裡來</h2>
             <p>訊號只新增、不覆寫；每筆都保留事件與逐字原句。</p>
             <div v-if="selectedSignals.length" class="evidence-listing">
               <article
-                v-for="(signal, index) in selectedSignals"
-                :key="`${signal.eventTitle}-${index}`"
+                v-for="signal in selectedSignals"
+                :key="`${signal.eventId}-${signal.framework}-${signal.dimension}-${signal.evidenceQuote}`"
               >
                 <div>
                   <span>{{ frameworkMeta[selectedFramework].dimensions[signal.dimension] }}</span

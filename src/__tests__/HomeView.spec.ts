@@ -2,16 +2,26 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { useEcho } from '@/composables/useEcho'
+import { useIdentity } from '@/composables/useIdentity'
 import { conversationScenarios } from '@/data/conversation-scenarios'
 import { chatLlm, generateInsightLlm } from '@/lib/llm'
+import { resolveUser } from '@/lib/persistence'
 import HomeView from '@/views/HomeView.vue'
 
 vi.mock('@/lib/llm', () => ({
   chatLlm: vi.fn(),
   generateInsightLlm: vi.fn(),
 }))
+vi.mock('@/lib/persistence', () => ({
+  resolveUser: vi.fn(),
+  saveEvent: vi.fn(),
+  fetchEvents: vi.fn(),
+  rebuildDashboard: vi.fn(),
+  fetchDashboard: vi.fn(),
+}))
 
 const echo = useEcho()
+const identity = useIdentity()
 
 async function mountHome() {
   const router = createRouter({
@@ -24,9 +34,12 @@ async function mountHome() {
   return mount(HomeView, { global: { plugins: [router] } })
 }
 
-beforeEach(() => {
+beforeEach(async () => {
+  identity.switchUser()
   echo.reset()
   localStorage.clear()
+  vi.mocked(resolveUser).mockResolvedValue({ id: crypto.randomUUID(), name: '測試者' })
+  await identity.enter('測試者')
   vi.mocked(chatLlm).mockReset()
   vi.mocked(chatLlm).mockResolvedValue({ text: '請繼續說說看。' })
   vi.mocked(generateInsightLlm).mockReset()
@@ -109,7 +122,7 @@ describe('Home conversation scenarios', () => {
     await flushPromises()
 
     expect(textarea.attributes('disabled')).toBeUndefined()
-    expect(echo.allEvents.value).toHaveLength(0)
+    expect(echo.confirmedEvent.value).toBeNull()
 
     await textarea.setValue('補充一段新對話')
     await wrapper.find('form').trigger('submit')
@@ -117,6 +130,6 @@ describe('Home conversation scenarios', () => {
 
     expect(wrapper.find('.insight-btn').exists()).toBe(true)
     expect(echo.state.insight).toBeNull()
-    expect(echo.allEvents.value).toHaveLength(0)
+    expect(echo.confirmedEvent.value).toBeNull()
   })
 })
