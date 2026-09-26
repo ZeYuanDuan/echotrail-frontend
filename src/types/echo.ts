@@ -1,20 +1,3 @@
-export interface TrailEvent {
-  id: number
-  title: string
-  date: string
-  quarter: number
-  happen: string[]
-  emotion: string
-  like: string
-  dislike: string
-  value: string
-  quote: string
-  careerAnchorType: CareerAnchorType
-  signals?: InsightSignal[]
-  dashboard?: DashboardProfile
-  isNew?: boolean
-}
-
 export type CareerAnchorType =
   | '專家達人'
   | '專業經理人'

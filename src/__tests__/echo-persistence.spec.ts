@@ -79,6 +79,9 @@ it('previews without persistence, freezes the first payload on ambiguous retry, 
   vi.mocked(saveEvent).mockRejectedValueOnce(new Error('network lost'))
   await echo.confirmInsight()
   const firstPayload = structuredClone(vi.mocked(saveEvent).mock.calls[0]![0])
+  expect(firstPayload.clientEventId).toMatch(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+  )
   expect(firstPayload.card.title).toBe('編輯後標題')
   echo.state.insight!.card.title = '後來改掉'
   await echo.confirmInsight()
@@ -90,6 +93,10 @@ it('previews without persistence, freezes the first payload on ambiguous retry, 
   echo.editCard('quote', '第二張卡我想挑戰新方向。')
   await echo.confirmInsight()
   const secondPayload = vi.mocked(saveEvent).mock.calls[2]![0]
+  expect(secondPayload.clientEventId).toMatch(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+  )
+  expect(secondPayload.clientEventId).not.toBe(firstPayload.clientEventId)
   expect(secondPayload.conversationId).toBe(conversation)
   expect(secondPayload.messages).toHaveLength(2)
   expect(secondPayload.messages[0]!.text).toContain('第二張卡')
