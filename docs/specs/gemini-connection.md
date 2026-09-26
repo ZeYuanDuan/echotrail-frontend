@@ -7,7 +7,7 @@
 1. 第 1～10 輪使用陪伴探索 prompt，第 11～15 輪使用積極收斂 prompt。
 2. 使用者點擊 Generate Insight，或送出第 16 輪內容時，前端把完整逐字稿送至 `POST /api/llm/insight`。
 3. 後端只產生結構化 Echo Card 與本次事件的職涯錨分類；前端先顯示暫存預覽，不儲存為 My Trail 事件。使用者若繼續對話，預覽會失效，並可以再次產生新的洞察。
-4. 使用者點擊「更新至 Dashboard」後，前端才把預覽儲存為事件，並將目前全部 Echo Card 送至 `POST /api/llm/dashboard`，由後端全量重算 Dashboard 與圖表訊號。
+4. 使用者點擊「確認 Echo Card」後，前端先把預覽儲存為事件，再由後端依目前全部已確認事件全量重算 Dashboard 與圖表訊號；成功後前往 Dashboard，重算失敗時保留已保存事件並提供重試。
 
 LLM 金鑰與 system prompt 都只存在 `echotrail-backend`。前端不接受、保存或傳送 system prompt 與金鑰。
 

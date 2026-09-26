@@ -55,6 +55,8 @@ it('renders every confirmed event in the API order even on the same date', async
   await router.isReady()
   const wrapper = mount(TrailView, { global: { plugins: [router] } })
   await flushPromises()
+  expect(wrapper.get('h1').classes()).toContain('page-title')
+  expect(wrapper.get('.page-subtitle').text()).toContain('沿著時間回看')
   expect(
     wrapper
       .findAll('[data-test="trail-event"]')

@@ -139,9 +139,9 @@ async function generateInsight(): Promise<void> {
     if (identity === user.value?.id && generation === requestGeneration) status.busy = false
   }
 }
-async function confirmInsight(): Promise<void> {
+async function confirmInsight(): Promise<EventRecord | null> {
   if (!user.value || !state.insight || !clientEventId.value || status.busy || confirmedEvent.value)
-    return
+    return null
   const identity = user.value.id
   const generation = requestGeneration
   status.busy = true
@@ -161,8 +161,10 @@ async function confirmInsight(): Promise<void> {
   pendingSavePayload.value = payload
   try {
     const result = await saveEvent(payload)
-    if (identity === user.value?.id && generation === requestGeneration)
+    if (identity === user.value?.id && generation === requestGeneration) {
       confirmedEvent.value = result
+      return result
+    }
   } catch (caught) {
     if (identity === user.value?.id && generation === requestGeneration) {
       if (axios.isAxiosError(caught) && caught.response?.status === 400)
@@ -172,6 +174,7 @@ async function confirmInsight(): Promise<void> {
   } finally {
     if (identity === user.value?.id && generation === requestGeneration) status.busy = false
   }
+  return null
 }
 export function useEcho() {
   return {

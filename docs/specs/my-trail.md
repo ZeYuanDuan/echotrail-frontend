@@ -1,6 +1,6 @@
 # My Trail 已確認事件
 
-My Trail 進入 `/trail` 時呼叫 `GET /api/events?userId=<uuid>`，顯示該使用者的全部已確認 Echo Card。未確認的預覽不會出現；卡片確認成功後，即使尚未更新 Dashboard，也能在重新載入後看到。
+My Trail 進入 `/trail` 時呼叫 `GET /api/events?userId=<uuid>`，顯示該使用者的全部已確認 Echo Card。未確認的預覽不會出現；卡片確認成功後，即使後續 Dashboard 自動重算失敗，也能在重新載入後看到。
 
 後端按資料庫 `created_at ASC, id ASC` 排序。前端完整保留 API 順序，以事件 UUID 作為元件 key，建立時間只用於顯示。同一天的多筆事件各自保留；不使用事件敘述推算日期，也不顯示寫死的季度或種子事件。
 

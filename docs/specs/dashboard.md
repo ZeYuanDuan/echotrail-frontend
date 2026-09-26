@@ -1,6 +1,6 @@
 # Dashboard 已保存快照
 
-Dashboard 由使用者明確按「更新至 Dashboard」後重算。後端依該 `userId` 讀取**全部**已確認事件洞見和訊號，產生整體 Persona、共鳴之錨、關鍵字、行為模式、北極星與框架訊號預覽，原子保存為一筆 `dashboard_runs`。確認 Echo Card 不會自動重算；重算失敗或來源版本衝突時，前一個成功快照仍可讀。
+使用者按「確認 Echo Card」後，前端先保存事件，再自動重算 Dashboard。後端依該 `userId` 讀取**全部**已確認事件洞見和訊號，產生整體 Persona、共鳴之錨、關鍵字、行為模式、北極星與框架訊號預覽，原子保存為一筆 `dashboard_runs`。只有事件保存成功才會開始重算；重算失敗或來源版本衝突時，事件仍保留，前一個成功快照仍可讀，使用者可從確認畫面或 My Trail 重試。
 
 前端 Dashboard 頁只呼叫 `GET /api/dashboard?userId=<uuid>`。回傳 `null` 時顯示空狀態；載入失敗顯示重試。Persona、文字、框架分數與證據均取自同一個 `DashboardSnapshot`，不從瀏覽器事件資料推算。重新載入會再次 GET；切換暱稱會先清空舊快照。
 

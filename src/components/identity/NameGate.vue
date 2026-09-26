@@ -6,8 +6,8 @@ const { busy, error, enter } = useIdentity()
 </script>
 <template>
   <main class="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-5 p-6">
-    <h1 class="text-3xl font-semibold">歡迎來到 EchoTrail</h1>
-    <p class="text-muted-foreground">輸入暱稱，開始留下你的職涯事件。</p>
+    <h1 class="page-title">歡迎來到 EchoTrail</h1>
+    <p class="page-subtitle">輸入暱稱，開始留下你的職涯事件。</p>
     <form class="flex flex-col gap-3" @submit.prevent="enter(name)">
       <label for="nickname">暱稱</label>
       <input

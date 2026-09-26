@@ -87,8 +87,10 @@ const northStarAxes = computed(() =>
   <main class="dashboard-content generated-dashboard">
     <header class="dashboard-hero">
       <div>
-        <h1 class="h1">{{ section === 'overview' ? 'My Dashboard' : '你的職涯洞察' }}</h1>
-        <p>
+        <h1 class="page-title">
+          {{ section === 'overview' ? 'My Dashboard' : '你的職涯洞察' }}
+        </h1>
+        <p class="page-subtitle">
           {{
             section === 'overview'
               ? '從對話裡看見你的能力、動機、價值標準與不變的職涯追求。'
@@ -110,15 +112,11 @@ const northStarAxes = computed(() =>
     <section v-else-if="!snapshot || !profile" class="dashboard-empty">
       <div class="empty-orbit" aria-hidden="true"></div>
       <h2>第一個洞察還在等你</h2>
-      <p>完成一段 Gemini 對話、產生 Echo Card，再按「更新至 Dashboard」。</p>
+      <p>完成一段 Gemini 對話並確認 Echo Card，系統就會自動更新這裡。</p>
       <RouterLink to="/" class="dashboard-link">回到對話</RouterLink>
     </section>
 
     <template v-else>
-      <p class="text-muted-foreground">
-        已保存版本 · {{ snapshot.sourceEventCount }} 筆事件 ·
-        {{ new Date(snapshot.createdAt).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' }) }}
-      </p>
       <div v-if="section === 'overview'" class="dashboard-overview">
         <RouterLink to="/dashboard/persona" class="overview-card persona-overview">
           <div class="overview-heading">

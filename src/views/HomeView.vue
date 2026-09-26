@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
-import axios from 'axios'
 import { useRouter } from 'vue-router'
 import EchoCard from '@/components/echo/EchoCard.vue'
 import { MAX_MESSAGE_LENGTH, useEcho } from '@/composables/useEcho'
@@ -9,30 +8,35 @@ import { useIdentity } from '@/composables/useIdentity'
 import { conversationScenarios, type ConversationScenario } from '@/data/conversation-scenarios'
 
 const { user } = useIdentity()
-const {
-  state,
-  status,
-  confirmedEvent,
-  send,
-  generateInsight,
-  confirmInsight,
-  continueConversation,
-  editCard,
-} = useEcho()
+const { state, status, confirmedEvent, newChat, send, generateInsight, confirmInsight, editCard } =
+  useEcho()
 const { rebuild } = useDashboard()
 const router = useRouter()
 const bottom = ref<HTMLElement | null>(null)
+const insightPreview = ref<HTMLElement | null>(null)
 const input = ref<HTMLTextAreaElement | null>(null)
 const scenarioStarted = ref(false)
+const confirmationStep = ref<'idle' | 'saving' | 'dashboard'>('idle')
+const dashboardUpdateFailed = ref(false)
+const dashboardUpdateSucceeded = ref(false)
+let confirmationGeneration = 0
 const conversationTurn = computed(
   () => state.messages.filter((message) => message.role === 'user').length,
 )
 const scenarioTurnCount = computed(() => conversationScenarios[0]?.turns.length ?? 0)
 watch(
-  () => [state.messages.length, state.insight, status.busy],
+  () => state.messages.length,
   async () => {
     await nextTick()
     bottom.value?.scrollIntoView?.({ behavior: 'smooth', block: 'end' })
+  },
+)
+watch(
+  () => state.insight,
+  async (insight, previousInsight) => {
+    if (!insight || previousInsight) return
+    await nextTick()
+    insightPreview.value?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
   },
 )
 watch(
@@ -40,6 +44,16 @@ watch(
   ([messageCount, draft]) => {
     if (messageCount === 0 && !draft) scenarioStarted.value = false
   },
+)
+watch(
+  () => user.value?.id,
+  () => {
+    confirmationGeneration++
+    confirmationStep.value = 'idle'
+    dashboardUpdateFailed.value = false
+    dashboardUpdateSucceeded.value = false
+  },
+  { flush: 'sync' },
 )
 function chooseScenarioTurn(scenario: ConversationScenario) {
   const text = scenario.turns[conversationTurn.value]
@@ -57,21 +71,37 @@ function onEnter(event: KeyboardEvent) {
 async function updateDashboard() {
   const identity = user.value?.id
   if (!identity || !confirmedEvent.value || status.busy) return
+  dashboardUpdateFailed.value = false
+  dashboardUpdateSucceeded.value = false
   status.busy = true
   status.error = ''
   try {
     await rebuild(identity)
-    if (user.value?.id === identity) await router.push('/dashboard')
-  } catch (caught) {
     if (user.value?.id === identity) {
-      const data: unknown = axios.isAxiosError(caught) ? caught.response?.data : null
-      status.error =
-        data && typeof data === 'object' && 'error' in data && typeof data.error === 'string'
-          ? data.error
-          : 'Dashboard 更新失敗，請重試。'
+      dashboardUpdateSucceeded.value = true
+      await router.push('/dashboard')
+    }
+  } catch {
+    if (user.value?.id === identity) {
+      dashboardUpdateSucceeded.value = false
+      dashboardUpdateFailed.value = true
     }
   } finally {
     if (user.value?.id === identity) status.busy = false
+  }
+}
+async function confirmAndUpdateDashboard() {
+  const identity = user.value?.id
+  if (!identity || status.busy || confirmedEvent.value) return
+  const generation = ++confirmationGeneration
+  confirmationStep.value = 'saving'
+  try {
+    const event = await confirmInsight()
+    if (!event || user.value?.id !== identity || generation !== confirmationGeneration) return
+    confirmationStep.value = 'dashboard'
+    await updateDashboard()
+  } finally {
+    if (generation === confirmationGeneration) confirmationStep.value = 'idle'
   }
 }
 </script>
@@ -91,7 +121,7 @@ async function updateDashboard() {
         >
           {{ message.text }}
         </div>
-        <p v-if="status.busy" class="thinking" role="status">
+        <p v-if="status.busy && confirmationStep === 'idle'" class="thinking" role="status">
           {{ state.insight ? '處理卡片中…' : '艾可整理中…' }}
         </p>
       </div>
@@ -100,52 +130,76 @@ async function updateDashboard() {
           ✨ Generate Insight
         </button>
       </div>
-      <EchoCard
+      <div
         v-if="state.insight"
-        :card="state.insight.card"
-        :editable="!confirmedEvent && !status.busy"
-        label="Echo Card 預覽"
-        @edit="editCard"
+        ref="insightPreview"
+        class="echo-card-anchor"
+        data-test="echo-card-preview"
       >
-        <p class="echo-footer">
-          {{
-            confirmedEvent
-              ? '已確認，My Trail 現在可以讀到這張卡片。'
-              : '確認後會保存這張卡片，Dashboard 仍需另行更新。'
-          }}
-        </p>
-        <button
-          v-if="!confirmedEvent"
-          data-test="confirm-card"
-          class="update-btn"
-          :disabled="status.busy"
-          @click="confirmInsight"
+        <EchoCard
+          :card="state.insight.card"
+          :editable="!confirmedEvent && !status.busy"
+          label="Echo Card 預覽"
+          @edit="editCard"
         >
-          確認 Echo Card
-        </button>
-        <div v-else class="flex flex-wrap gap-3">
-          <button
-            data-test="update-dashboard"
-            class="update-btn"
-            :disabled="status.busy"
-            @click="updateDashboard"
+          <p
+            v-if="!confirmedEvent || dashboardUpdateFailed || dashboardUpdateSucceeded"
+            class="echo-footer"
           >
-            更新至 Dashboard
-          </button>
-          <button
-            data-test="continue-conversation"
-            type="button"
-            class="toggle-btn"
-            :disabled="status.busy"
-            @click="continueConversation"
+            {{
+              confirmedEvent
+                ? dashboardUpdateFailed
+                  ? '更新失敗，請在這裡重試。'
+                  : dashboardUpdateSucceeded
+                    ? '事件已保存。'
+                    : ''
+                : '確認後會保存為事件，並自動更新 Dashboard。'
+            }}
+          </p>
+          <div
+            v-if="!confirmedEvent || confirmationStep !== 'idle'"
+            class="dashboard-update-actions"
           >
-            繼續此對話
-          </button>
-        </div>
-      </EchoCard>
+            <button
+              data-test="confirm-card"
+              class="update-btn"
+              :disabled="status.busy"
+              @click="confirmAndUpdateDashboard"
+            >
+              {{ confirmationStep === 'idle' ? '確認 Echo Card' : '處理中…' }}
+            </button>
+            <p v-if="confirmationStep !== 'idle'" class="dashboard-update-status" role="status">
+              {{ confirmationStep === 'saving' ? '正在儲存事件' : '正在更新 Dashboard'
+              }}<span class="loading-dots" aria-hidden="true"
+                ><span>.</span><span>.</span><span>.</span></span
+              >
+            </p>
+          </div>
+          <div v-else class="flex flex-wrap gap-3">
+            <button
+              v-if="dashboardUpdateFailed"
+              data-test="update-dashboard"
+              class="update-btn"
+              :disabled="status.busy"
+              @click="updateDashboard"
+            >
+              重試更新 Dashboard
+            </button>
+            <button
+              data-test="new-conversation"
+              type="button"
+              class="toggle-btn"
+              :disabled="status.busy"
+              @click="newChat"
+            >
+              開啟新對話
+            </button>
+          </div>
+        </EchoCard>
+      </div>
     </template>
     <p v-if="status.error" role="alert" class="mb-3 text-sm text-destructive">{{ status.error }}</p>
-    <form class="input-box" @submit.prevent="send">
+    <form v-if="!confirmedEvent" class="input-box" @submit.prevent="send">
       <label class="sr-only" for="chat-input">和艾可聊聊</label>
       <textarea
         id="chat-input"
@@ -175,7 +229,12 @@ async function updateDashboard() {
       </p>
     </form>
     <section
-      v-if="scenarioStarted && conversationTurn > 0 && conversationTurn < scenarioTurnCount"
+      v-if="
+        !confirmedEvent &&
+        scenarioStarted &&
+        conversationTurn > 0 &&
+        conversationTurn < scenarioTurnCount
+      "
       aria-labelledby="scenario-next-title"
     >
       <div class="scenario-heading">
@@ -188,7 +247,7 @@ async function updateDashboard() {
           :key="`${scenario.id}-${conversationTurn}`"
           type="button"
           class="suggest-card scenario-card"
-          :disabled="status.busy || !!confirmedEvent"
+          :disabled="!!confirmedEvent"
           @click="chooseScenarioTurn(scenario)"
         >
           <strong>{{ scenario.label }}</strong>

@@ -148,8 +148,20 @@ textarea::placeholder {
   width: 100%;
   overflow-wrap: anywhere;
 }
+.echo-card-anchor {
+  scroll-margin-top: 24px;
+}
 .echo-box ul {
   margin: 0;
+}
+.echo-box {
+  min-width: 0;
+}
+.echo-field {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  resize: vertical;
 }
 .echo-grid > .echo-box:last-child {
   grid-column: 1 / -1;
@@ -194,6 +206,44 @@ textarea::placeholder {
   border-color: #3a6ea5;
   box-shadow: 0 0 0 2px rgb(58 110 165 / 12%);
 }
+.dashboard-update-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  margin-top: 14px;
+}
+.dashboard-update-actions .update-btn {
+  margin-top: 0;
+}
+.dashboard-update-status {
+  margin: 0;
+  color: #777168;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.loading-dots span {
+  display: inline-block;
+  animation: dashboard-loading-dot 1.2s ease-in-out infinite;
+}
+.loading-dots span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.loading-dots span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes dashboard-loading-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
 .insight-donut {
   width: 64px;
   height: 64px;
@@ -226,6 +276,7 @@ textarea::placeholder {
   align-items: flex-end;
   justify-content: space-between;
   gap: 32px;
+  margin-bottom: 28px;
 }
 .dashboard-hero h1 {
   max-width: 680px;

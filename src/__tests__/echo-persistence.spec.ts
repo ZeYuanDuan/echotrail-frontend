@@ -132,7 +132,7 @@ it('unfreezes after a definitive 400 and ignores a late save for the previous us
   expect(echo.confirmedEvent.value).toBeNull()
   expect(echo.state.insight).toBeNull()
 })
-it('shows confirm before rebuild and navigates only after rebuild succeeds', async () => {
+it('confirms, rebuilds automatically, and navigates only after the Dashboard succeeds', async () => {
   const router = createRouter({ history: createMemoryHistory(), routes })
   await router.push('/')
   await router.isReady()
@@ -140,15 +140,20 @@ it('shows confirm before rebuild and navigates only after rebuild succeeds', asy
   await preview()
   await flushPromises()
   expect(wrapper.find('[data-test="confirm-card"]').exists()).toBe(true)
+  expect(wrapper.findAll('.echo-field')).toHaveLength(6)
+  expect(wrapper.find('[aria-label="事件標題"]').exists()).toBe(false)
   expect(rebuildDashboard).not.toHaveBeenCalled()
+  vi.mocked(rebuildDashboard).mockRejectedValueOnce(new Error('failure'))
   await wrapper.get('[data-test="confirm-card"]').trigger('click')
   await flushPromises()
+  expect(saveEvent).toHaveBeenCalledOnce()
+  expect(rebuildDashboard).toHaveBeenCalledWith(identity.user.value!.id)
   expect(wrapper.find('[data-test="update-dashboard"]').exists()).toBe(true)
-  vi.mocked(rebuildDashboard).mockRejectedValueOnce(new Error('failure'))
-  await wrapper.get('[data-test="update-dashboard"]').trigger('click')
-  await flushPromises()
+  expect(wrapper.find('.input-box').exists()).toBe(false)
+  expect(wrapper.get('[data-test="new-conversation"]').text()).toBe('開啟新對話')
   expect(router.currentRoute.value.path).toBe('/')
-  expect(wrapper.text()).toContain('Dashboard 更新失敗')
+  expect(wrapper.text()).toContain('更新失敗，請在這裡重試。')
+  expect(wrapper.text()).not.toContain('事件已保存；若自動更新失敗')
   expect(echo.status.busy).toBe(false)
   vi.mocked(rebuildDashboard).mockResolvedValueOnce({
     id: 1,

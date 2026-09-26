@@ -61,7 +61,10 @@ async function updateDashboard() {
 </script>
 <template>
   <div class="dashboard-content">
-    <h1 class="h1">My Trail</h1>
+    <header class="trail-header">
+      <h1 class="page-title">My Trail</h1>
+      <p class="page-subtitle">沿著時間回看每個重要片刻，點選節點就能切換事件。</p>
+    </header>
     <p v-if="busy" role="status">正在讀取事件…</p>
     <div v-else-if="error" role="alert">
       <p>{{ error }}</p>

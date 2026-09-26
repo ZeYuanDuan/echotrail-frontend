@@ -15,6 +15,7 @@ function update(field: EditedField, event: Event) {
         <textarea
           v-if="editable"
           aria-label="事件的發生"
+          class="echo-field"
           :value="card.happen.join('\n')"
           rows="3"
           @input="update('happen', $event)"
@@ -42,6 +43,7 @@ function update(field: EditedField, event: Event) {
         <textarea
           v-if="editable"
           :aria-label="field"
+          class="echo-field"
           :value="card[field]"
           rows="2"
           @input="update(field, $event)"
@@ -49,13 +51,6 @@ function update(field: EditedField, event: Event) {
         <p v-else>{{ card[field] }}</p>
       </section>
     </div>
-    <label v-if="editable" class="flex flex-col gap-1"
-      >事件標題<input
-        :value="card.title"
-        aria-label="事件標題"
-        class="rounded border border-input p-2"
-        @input="update('title', $event)"
-    /></label>
     <slot />
   </article>
 </template>
