@@ -1,6 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
+import CareerAnchorVenn from '@/components/dashboard/CareerAnchorVenn.vue'
 import { routes } from '@/router'
 import { useIdentity } from '@/composables/useIdentity'
 import { useDashboard } from '@/composables/useDashboard'
@@ -129,6 +130,18 @@ it('renders only the saved snapshot and its profile, scores, and evidence', asyn
   expect(wrapper.text()).toContain('2')
   expect(wrapper.text()).not.toContain('已保存版本')
   expect(wrapper.text()).not.toContain('假資料')
+  await router.push('/dashboard/anchor')
+  await flushPromises()
+  const anchorVenn = wrapper.getComponent(CareerAnchorVenn)
+  expect(anchorVenn.text()).toContain('我擅長什麼？釐清問題')
+  expect(anchorVenn.text()).toContain('我想要什麼？理解')
+  expect(anchorVenn.text()).toContain('我的標準是什麼？先理解')
+  expect(anchorVenn.text()).toContain('⚓ 專家達人')
+  await router.push('/dashboard/keywords')
+  await flushPromises()
+  const keyword = wrapper.get('.word-field.large span')
+  expect(keyword.text()).toBe('理解')
+  expect(keyword.attributes('style')).toContain('--keyword-font-size: 46px')
   await router.push('/dashboard/frameworks')
   await flushPromises()
   expect(router.currentRoute.value.path).toBe('/dashboard')
@@ -159,6 +172,11 @@ it('keeps the empty state when no run exists and ignores an old user response', 
   const wrapper = mount(DashboardView, { global: { plugins: [router] } })
   await flushPromises()
   expect(wrapper.text()).toContain('第一個洞察還在等你')
+  const action = wrapper.get('[data-slot="button"]')
+  expect(action.text()).toBe('回到對話')
+  expect(action.attributes('data-variant')).toBe('echo')
+  expect(action.attributes('data-size')).toBeUndefined()
+  expect(action.classes()).toContain('rounded-full')
   const oldId = identity.user.value!.id
   let release!: (value: DashboardSnapshot | null) => void
   vi.mocked(fetchDashboard).mockImplementationOnce(

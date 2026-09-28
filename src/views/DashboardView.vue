@@ -2,6 +2,8 @@
 import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import CareerAnchorRadar from '@/components/dashboard/CareerAnchorRadar.vue'
+import CareerAnchorVenn from '@/components/dashboard/CareerAnchorVenn.vue'
+import { Button } from '@/components/ui/button'
 import { useDashboard } from '@/composables/useDashboard'
 import { useIdentity } from '@/composables/useIdentity'
 
@@ -104,7 +106,11 @@ const northStarEvents = computed(() => {
       <div class="empty-orbit" aria-hidden="true"></div>
       <h2>第一個洞察還在等你</h2>
       <p>完成一段 Gemini 對話並確認 Echo Card，系統就會自動更新這裡。</p>
-      <RouterLink to="/" class="dashboard-link">回到對話</RouterLink>
+      <div class="mt-6">
+        <Button as-child variant="echo" class="rounded-full">
+          <RouterLink to="/">回到對話</RouterLink>
+        </Button>
+      </div>
     </section>
 
     <template v-else>
@@ -126,42 +132,19 @@ const northStarEvents = computed(() => {
             <h2>我的共鳴之錨</h2>
             <span>查看三個基礎</span>
           </div>
-          <div class="venn" aria-label="能力、動機與價值的交集">
-            <div class="venn-circle ability">
-              <strong>我擅長什麼？</strong>
-              <ul>
-                <li v-for="item in anchorSummary.ability" :key="item">{{ item }}</li>
-              </ul>
-            </div>
-            <div class="venn-circle motivation">
-              <strong>我想要什麼？</strong>
-              <ul>
-                <li v-for="item in anchorSummary.motivation" :key="item">{{ item }}</li>
-              </ul>
-            </div>
-            <div class="venn-circle values">
-              <strong>我的標準是什麼？</strong>
-              <ul>
-                <li v-for="item in anchorSummary.values" :key="item">{{ item }}</li>
-              </ul>
-            </div>
-            <div class="venn-center">
-              <strong>⚓ {{ anchorSummary.primary }}</strong
-              ><small>你的核心職涯錨定</small>
-            </div>
-          </div>
+          <CareerAnchorVenn :anchor="anchorSummary" />
         </RouterLink>
 
         <RouterLink to="/dashboard/keywords" class="overview-card keywords-overview">
           <div class="overview-heading">
             <h2>重複關鍵字排行榜</h2>
-            <span>查看來源</span>
+            <span>查看詳細</span>
           </div>
           <div class="word-field">
             <span
               v-for="keyword in keywords"
               :key="keyword.text"
-              :style="{ fontSize: `${13 + keyword.weight * 4}px` }"
+              :style="{ '--keyword-font-size': `${13 + keyword.weight * 4}px` }"
               >{{ keyword.text }}</span
             >
           </div>
@@ -188,8 +171,8 @@ const northStarEvents = computed(() => {
               <span>查看完整指引</span>
             </div>
             <p class="north-star-kicker">主要職涯錨定：{{ profile.northStar.primaryAnchor }}</p>
-            <h3>{{ profile.northStar.tagline }}</h3>
-            <p>{{ profile.northStar.bottomLine }}</p>
+            <h3 class="north-star-tagline">{{ profile.northStar.tagline }}</h3>
+            <p class="north-star-bottom-line">{{ profile.northStar.bottomLine }}</p>
           </div>
         </RouterLink>
       </div>
@@ -210,26 +193,7 @@ const northStarEvents = computed(() => {
         <p class="detail-lead">
           所有事件中的三種視角交集，形成目前最清楚的「{{ anchorSummary.primary }}」。
         </p>
-        <div class="anchor-foundations">
-          <article>
-            <h3>我擅長什麼？</h3>
-            <ul>
-              <li v-for="item in anchorSummary.ability" :key="item">{{ item }}</li>
-            </ul>
-          </article>
-          <article>
-            <h3>我想要什麼？</h3>
-            <ul>
-              <li v-for="item in anchorSummary.motivation" :key="item">{{ item }}</li>
-            </ul>
-          </article>
-          <article>
-            <h3>我的標準是什麼？</h3>
-            <ul>
-              <li v-for="item in anchorSummary.values" :key="item">{{ item }}</li>
-            </ul>
-          </article>
-        </div>
+        <CareerAnchorVenn :anchor="anchorSummary" />
       </section>
 
       <section v-else-if="section === 'keywords'" class="dashboard-detail keyword-detail">
@@ -240,7 +204,7 @@ const northStarEvents = computed(() => {
           <span
             v-for="keyword in keywords"
             :key="keyword.text"
-            :style="{ fontSize: `${18 + keyword.weight * 7}px` }"
+            :style="{ '--keyword-font-size': `${18 + keyword.weight * 7}px` }"
             >{{ keyword.text }}</span
           >
         </div>

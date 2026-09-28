@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import EchoCard from '@/components/echo/EchoCard.vue'
+import { Button } from '@/components/ui/button'
 import { useIdentity } from '@/composables/useIdentity'
 import { useTrail } from '@/composables/useTrail'
 
@@ -77,7 +78,11 @@ function selectEvent(id: string) {
       <div>🌱</div>
       <h2>還沒有留下事件</h2>
       <p>確認 Echo Card 後，事件就會出現在這裡。</p>
-      <RouterLink to="/" class="update-btn">開始聊聊</RouterLink>
+      <div class="mt-6">
+        <Button as-child variant="echo" class="rounded-full">
+          <RouterLink to="/">開始聊聊</RouterLink>
+        </Button>
+      </div>
     </section>
     <section v-else class="trail-explorer" aria-label="職涯事件">
       <nav class="trail-timeline-wrap" aria-label="事件時間軸">

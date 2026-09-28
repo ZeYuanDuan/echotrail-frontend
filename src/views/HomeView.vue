@@ -274,7 +274,9 @@ async function confirmAndUpdateDashboard() {
         </button>
       </div>
     </section>
-    <p class="demo-note">Gemini 即時回覆 · Enter 送出，Shift + Enter 換行</p>
+    <p class="demo-note">
+      Gemini 即時回覆<span class="desktop-keyboard-hint"> · Enter 送出，Shift + Enter 換行</span>
+    </p>
     <div ref="bottom"></div>
   </div>
 </template>
