@@ -16,7 +16,7 @@ export async function chatLlm(
         text,
       })),
     },
-    { timeout: 30_000 },
+    { timeout: 58_000 },
   )
   if (typeof data.text !== 'string' || !data.text.trim()) throw new Error('模型未回傳文字。')
   return data
