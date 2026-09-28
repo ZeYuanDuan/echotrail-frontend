@@ -20,15 +20,110 @@ const state = reactive<{ messages: Message[]; draft: string; insight: InsightRes
   insight: null,
 })
 const status = reactive({ busy: false, error: '' })
-const conversationId = ref(crypto.randomUUID())
+const conversationId = ref<string>(crypto.randomUUID())
 const segmentStartIndex = ref(0)
 const clientEventId = ref<string | null>(null)
 const confirmedEvent = ref<EventRecord | null>(null)
 const pendingSavePayload = ref<ConfirmEventInput | null>(null)
 const editedFields = ref<EditedField[]>([])
 let requestGeneration = 0
+let changingDraftOwner = false
 
-function reset(): void {
+const DRAFT_KEY_PREFIX = 'echotrail-conversation-draft-v1:'
+type ConversationDraft = {
+  version: 1
+  userId: string
+  conversationId: string
+  messages: Message[]
+  draft: string
+  segmentStartIndex: number
+}
+
+function draftKey(userId: string): string {
+  return `${DRAFT_KEY_PREFIX}${userId}`
+}
+
+function removeDraft(userId = user.value?.id): void {
+  if (!userId) return
+  try {
+    localStorage.removeItem(draftKey(userId))
+  } catch {
+    // The conversation remains usable when browser storage is unavailable.
+  }
+}
+
+function isMessage(value: unknown): value is Message {
+  return (
+    !!value &&
+    typeof value === 'object' &&
+    'role' in value &&
+    (value.role === 'user' || value.role === 'echo') &&
+    'text' in value &&
+    typeof value.text === 'string'
+  )
+}
+
+function isConversationDraft(value: unknown, userId: string): value is ConversationDraft {
+  if (!value || typeof value !== 'object') return false
+  const saved = value as Partial<ConversationDraft>
+  return (
+    saved.version === 1 &&
+    saved.userId === userId &&
+    typeof saved.conversationId === 'string' &&
+    saved.conversationId.length > 0 &&
+    Array.isArray(saved.messages) &&
+    saved.messages.every(isMessage) &&
+    typeof saved.draft === 'string' &&
+    saved.draft.length <= MAX_MESSAGE_LENGTH &&
+    Number.isInteger(saved.segmentStartIndex) &&
+    saved.segmentStartIndex! >= 0 &&
+    saved.segmentStartIndex! <= saved.messages.length
+  )
+}
+
+function persistDraft(): void {
+  const userId = user.value?.id
+  if (!userId || changingDraftOwner || status.busy) return
+  const hasUnfinishedSegment =
+    state.draft.length > 0 || state.messages.length > segmentStartIndex.value
+  if (confirmedEvent.value || !hasUnfinishedSegment) {
+    removeDraft(userId)
+    return
+  }
+  const saved: ConversationDraft = {
+    version: 1,
+    userId,
+    conversationId: conversationId.value,
+    messages: state.messages.map((message) => ({ ...message })),
+    draft: state.draft,
+    segmentStartIndex: segmentStartIndex.value,
+  }
+  try {
+    localStorage.setItem(draftKey(userId), JSON.stringify(saved))
+  } catch {
+    // The conversation remains usable when browser storage is unavailable.
+  }
+}
+
+function restoreDraft(userId: string): void {
+  try {
+    const raw = localStorage.getItem(draftKey(userId))
+    if (!raw) return
+    const saved: unknown = JSON.parse(raw)
+    if (!isConversationDraft(saved, userId)) {
+      removeDraft(userId)
+      return
+    }
+    state.messages = saved.messages.map((message) => ({ ...message }))
+    state.draft = saved.draft
+    conversationId.value = saved.conversationId
+    segmentStartIndex.value = saved.segmentStartIndex
+  } catch {
+    removeDraft(userId)
+  }
+}
+
+function resetMemory(): void {
   requestGeneration++
   state.messages = []
   state.draft = ''
@@ -42,7 +137,35 @@ function reset(): void {
   pendingSavePayload.value = null
   editedFields.value = []
 }
-watch(() => user.value?.id, reset, { flush: 'sync' })
+
+function reset(): void {
+  changingDraftOwner = true
+  removeDraft()
+  resetMemory()
+  changingDraftOwner = false
+}
+watch(
+  () => user.value?.id,
+  (userId) => {
+    changingDraftOwner = true
+    resetMemory()
+    if (userId) restoreDraft(userId)
+    changingDraftOwner = false
+  },
+  { flush: 'sync' },
+)
+watch(
+  [
+    () => state.messages,
+    () => state.draft,
+    () => state.insight,
+    () => status.busy,
+    () => segmentStartIndex.value,
+    () => confirmedEvent.value,
+  ],
+  persistDraft,
+  { deep: true, flush: 'sync' },
+)
 function newChat(): void {
   if (!status.busy) reset()
 }
@@ -86,13 +209,13 @@ async function send(): Promise<void> {
   const previousPendingSavePayload = pendingSavePayload.value
   const previousEditedFields = [...editedFields.value]
   status.error = ''
+  status.busy = true
   state.messages.push({ role: 'user', text })
   state.draft = ''
   state.insight = null
   clientEventId.value = null
   pendingSavePayload.value = null
   editedFields.value = []
-  status.busy = true
   try {
     const { text: reply } = await chatLlm(state.messages.slice(-31))
     if (identity === user.value?.id && generation === requestGeneration)

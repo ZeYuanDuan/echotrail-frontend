@@ -1115,6 +1115,9 @@ textarea::placeholder {
   .echo-app {
     flex-direction: column;
   }
+  textarea.input-text {
+    font-size: 16px;
+  }
   .sidebar {
     width: 100%;
     height: auto;
