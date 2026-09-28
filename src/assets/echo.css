@@ -586,6 +586,31 @@ textarea::placeholder {
   background: white;
   line-height: 1.7;
 }
+.anchor-foundations {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 28px;
+}
+.anchor-foundations article {
+  min-height: 220px;
+  padding: 24px;
+  border-radius: 14px;
+  background: #eaf2fa;
+}
+.anchor-foundations article:nth-child(2) {
+  background: #f1eafa;
+}
+.anchor-foundations article:nth-child(3) {
+  background: #fff3ce;
+}
+.anchor-foundations h3 {
+  font-size: 17px;
+}
+.anchor-foundations ul {
+  margin-top: 16px;
+  line-height: 1.8;
+}
 .pattern-ledger {
   display: grid;
   gap: 16px;
@@ -1115,6 +1140,9 @@ textarea::placeholder {
   .echo-app {
     flex-direction: column;
   }
+  textarea.input-text {
+    font-size: 16px;
+  }
   .sidebar {
     width: 100%;
     height: auto;
@@ -1249,9 +1277,38 @@ textarea::placeholder {
     min-height: 400px;
   }
   .venn {
-    transform: scale(0.82);
-    transform-origin: top center;
-    margin-bottom: -56px;
+    container-type: inline-size;
+    width: min(100%, 320px);
+    height: auto;
+    aspect-ratio: 320 / 260;
+    margin-bottom: 116px;
+  }
+  .venn-circle {
+    width: 52cqi;
+    height: 52cqi;
+    overflow: hidden;
+  }
+  .venn-circle ul {
+    max-width: 116px;
+    font-size: 9px;
+    line-height: 1.25;
+  }
+  .venn-circle.ability {
+    left: 0;
+    padding: 20px 14px 52px;
+  }
+  .venn-circle.motivation {
+    right: 0;
+    padding: 20px 14px 52px;
+  }
+  .venn-circle.values {
+    padding: 52px 14px 18px;
+  }
+  .venn-center {
+    top: calc(100% + 12px);
+    width: min(100%, 280px);
+    min-width: 0;
+    transform: translateX(-50%);
   }
   .north-star-overview {
     grid-template-columns: 1fr;
@@ -1259,7 +1316,8 @@ textarea::placeholder {
   .north-star-overview .north-star-tagline {
     font-size: 17px;
   }
-  .persona-notes {
+  .persona-notes,
+  .anchor-foundations {
     grid-template-columns: 1fr;
   }
   .latest-insight .latest-meta {

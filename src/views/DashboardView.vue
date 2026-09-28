@@ -193,7 +193,27 @@ const northStarEvents = computed(() => {
         <p class="detail-lead">
           所有事件中的三種視角交集，形成目前最清楚的「{{ anchorSummary.primary }}」。
         </p>
-        <CareerAnchorVenn :anchor="anchorSummary" />
+        <CareerAnchorVenn :anchor="anchorSummary" :show-items="false" />
+        <div class="anchor-foundations">
+          <article>
+            <h3>我擅長什麼？</h3>
+            <ul>
+              <li v-for="item in anchorSummary.ability" :key="item">{{ item }}</li>
+            </ul>
+          </article>
+          <article>
+            <h3>我想要什麼？</h3>
+            <ul>
+              <li v-for="item in anchorSummary.motivation" :key="item">{{ item }}</li>
+            </ul>
+          </article>
+          <article>
+            <h3>我的標準是什麼？</h3>
+            <ul>
+              <li v-for="item in anchorSummary.values" :key="item">{{ item }}</li>
+            </ul>
+          </article>
+        </div>
       </section>
 
       <section v-else-if="section === 'keywords'" class="dashboard-detail keyword-detail">
