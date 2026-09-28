@@ -27,4 +27,32 @@ describe('Application routing', () => {
 
     expect(router.currentRoute.value.path).toBe('/dashboard')
   })
+
+  it('reveals mobile user actions from the settings menu', async () => {
+    const identity = useIdentity()
+    identity.user.value = { id: crypto.randomUUID(), name: '小美' }
+    const router = createRouter({ history: createMemoryHistory(), routes })
+    await router.push('/')
+    await router.isReady()
+    const wrapper = mount(App, {
+      global: { plugins: [router], stubs: { RouterView: true } },
+    })
+    const trigger = wrapper.get('.mobile-user-menu-trigger')
+
+    expect(trigger.attributes('aria-expanded')).toBe('false')
+    expect(wrapper.find('.mobile-user-popover').exists()).toBe(false)
+
+    await trigger.trigger('click')
+
+    expect(trigger.attributes('aria-expanded')).toBe('true')
+    expect(wrapper.get('.mobile-user-name').text()).toBe('小美')
+    expect(wrapper.get('.mobile-user-popover button').text()).toBe('切換使用者')
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('.mobile-user-popover').exists()).toBe(false)
+    wrapper.unmount()
+    identity.switchUser()
+  })
 })
