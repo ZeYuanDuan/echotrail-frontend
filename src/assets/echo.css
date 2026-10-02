@@ -398,6 +398,10 @@ textarea::placeholder {
   height: 350px;
   margin: 24px auto 0;
 }
+.venn-diagram {
+  position: absolute;
+  inset: 0;
+}
 .venn-circle {
   position: absolute;
   display: flex;
@@ -1300,8 +1304,12 @@ textarea::placeholder {
     container-type: inline-size;
     width: min(100%, 320px);
     height: auto;
+  }
+  .venn-diagram {
+    position: relative;
+    inset: auto;
+    width: 100%;
     aspect-ratio: 320 / 260;
-    margin-bottom: 116px;
   }
   .venn-circle {
     width: 52cqi;
@@ -1325,10 +1333,13 @@ textarea::placeholder {
     padding: 52px 14px 18px;
   }
   .venn-center {
-    top: calc(100% + 12px);
+    position: relative;
+    top: auto;
+    left: auto;
     width: min(100%, 280px);
     min-width: 0;
-    transform: translateX(-50%);
+    margin: 12px auto 0;
+    transform: none;
   }
   .north-star-overview {
     grid-template-columns: 1fr;
