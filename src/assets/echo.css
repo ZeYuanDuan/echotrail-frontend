@@ -92,6 +92,19 @@
   margin: 0 auto;
   padding: 62px 60px;
 }
+.chat-topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.chat-topbar > div {
+  min-width: 0;
+}
+.new-chat-action {
+  flex-shrink: 0;
+}
 .page-title {
   margin: 0;
   color: #2c2c2c;
@@ -131,9 +144,8 @@ textarea::placeholder {
 }
 .chat-heading {
   display: flex;
-  justify-content: space-between;
+  gap: 12px;
   align-items: center;
-  margin-bottom: 24px;
 }
 .chat-msg-user,
 .chat-msg-echo {
@@ -1254,6 +1266,14 @@ textarea::placeholder {
   }
   .page-title {
     font-size: 22px;
+  }
+  .chat-topbar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .new-chat-action {
+    align-self: flex-end;
   }
   .dashboard-detail > h2 {
     font-size: 20px;

@@ -46,6 +46,63 @@ beforeEach(async () => {
 })
 
 describe('Home conversation scenarios', () => {
+  it('asks in a modal before clearing an existing conversation or input', async () => {
+    echo.state.messages = [{ role: 'user', text: '已送出的內容' }]
+    echo.state.draft = '還沒送出的內容'
+    const previousConversationId = echo.conversationId.value
+    const wrapper = await mountHome()
+    const dialog = wrapper.get('[data-test="new-chat-dialog"]').element as HTMLDialogElement
+    dialog.showModal = vi.fn(() => dialog.setAttribute('open', ''))
+    dialog.close = vi.fn(() => dialog.removeAttribute('open'))
+
+    expect(wrapper.get('[data-test="start-new-chat"]').text()).toBe('＋ 與艾可聊天')
+    await wrapper.get('[data-test="start-new-chat"]').trigger('click')
+    expect(dialog.showModal).toHaveBeenCalledOnce()
+    expect(dialog.open).toBe(true)
+    expect(echo.state.messages).toHaveLength(1)
+    expect(echo.state.draft).toBe('還沒送出的內容')
+
+    await wrapper.get('[data-test="cancel-new-chat"]').trigger('click')
+    expect(dialog.open).toBe(false)
+    expect(echo.state.messages).toHaveLength(1)
+    expect(echo.state.draft).toBe('還沒送出的內容')
+
+    await wrapper.get('[data-test="start-new-chat"]').trigger('click')
+    await wrapper.get('[data-test="confirm-new-chat"]').trigger('click')
+    expect(dialog.open).toBe(false)
+    expect(echo.conversationId.value).not.toBe(previousConversationId)
+    expect(echo.state.messages).toHaveLength(0)
+    expect(echo.state.draft).toBe('')
+
+    wrapper.unmount()
+  })
+
+  it('asks in a modal when only unsent text exists', async () => {
+    echo.state.draft = '還沒送出的內容'
+    const wrapper = await mountHome()
+    const dialog = wrapper.get('[data-test="new-chat-dialog"]').element as HTMLDialogElement
+    dialog.showModal = vi.fn(() => dialog.setAttribute('open', ''))
+
+    await wrapper.get('[data-test="start-new-chat"]').trigger('click')
+
+    expect(dialog.open).toBe(true)
+    expect(echo.state.draft).toBe('還沒送出的內容')
+    wrapper.unmount()
+  })
+
+  it('opens a new chat immediately when there is no conversation or input', async () => {
+    const previousConversationId = echo.conversationId.value
+    const wrapper = await mountHome()
+    const dialog = wrapper.get('[data-test="new-chat-dialog"]').element as HTMLDialogElement
+    dialog.showModal = vi.fn()
+
+    await wrapper.get('[data-test="start-new-chat"]').trigger('click')
+
+    expect(dialog.showModal).not.toHaveBeenCalled()
+    expect(echo.conversationId.value).not.toBe(previousConversationId)
+    wrapper.unmount()
+  })
+
   it('ends a confirmed conversation and starts fresh from the new-conversation action', async () => {
     const previousConversationId = echo.conversationId.value
     const card = {

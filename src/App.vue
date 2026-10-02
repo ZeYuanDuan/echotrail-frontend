@@ -7,7 +7,7 @@ import { useIdentity } from '@/composables/useIdentity'
 import NameGate from '@/components/identity/NameGate.vue'
 
 const { user, restore, switchUser } = useIdentity()
-const { status, newChat } = useEcho()
+const { status } = useEcho()
 const router = useRouter()
 const route = useRoute()
 const mobileUserMenuOpen = ref(false)
@@ -38,10 +38,6 @@ onBeforeUnmount(() => {
   document.removeEventListener('click', handleDocumentClick)
   document.removeEventListener('keydown', handleDocumentKeydown)
 })
-function start() {
-  newChat()
-  void router.push('/')
-}
 function changeUser() {
   closeMobileUserMenu()
   switchUser()
@@ -75,7 +71,7 @@ function changeUser() {
         </div>
       </div>
       <nav aria-label="主要導覽">
-        <button class="new-btn" :disabled="status.busy" @click="start">＋ New</button>
+        <RouterLink to="/" class="new-btn">＋ New</RouterLink>
         <RouterLink to="/trail" class="nav-item" active-class="active">🧭 My Trail</RouterLink>
         <RouterLink
           to="/dashboard"

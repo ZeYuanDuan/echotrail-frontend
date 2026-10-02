@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { routes } from '@/router'
+import { useEcho } from '@/composables/useEcho'
 import { useIdentity } from '@/composables/useIdentity'
 import App from '../App.vue'
 
@@ -52,6 +53,30 @@ describe('Application routing', () => {
     await wrapper.vm.$nextTick()
 
     expect(wrapper.find('.mobile-user-popover').exists()).toBe(false)
+    wrapper.unmount()
+    identity.switchUser()
+  })
+
+  it('uses + New as a conversation tab without clearing messages or unsent input', async () => {
+    const identity = useIdentity()
+    identity.user.value = { id: crypto.randomUUID(), name: '小美' }
+    const echo = useEcho()
+    echo.state.messages = [{ role: 'user', text: '已送出的內容' }]
+    echo.state.draft = '還沒送出的內容'
+    const router = createRouter({ history: createMemoryHistory(), routes })
+    await router.push('/trail')
+    await router.isReady()
+    const wrapper = mount(App, {
+      global: { plugins: [router], stubs: { RouterView: true } },
+    })
+
+    await wrapper.get('a.new-btn[href="/"]').trigger('click')
+    await flushPromises()
+
+    expect(router.currentRoute.value.path).toBe('/')
+    expect(echo.state.messages).toEqual([{ role: 'user', text: '已送出的內容' }])
+    expect(echo.state.draft).toBe('還沒送出的內容')
+
     wrapper.unmount()
     identity.switchUser()
   })

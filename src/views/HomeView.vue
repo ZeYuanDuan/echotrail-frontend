@@ -2,6 +2,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import EchoCard from '@/components/echo/EchoCard.vue'
+import { Button } from '@/components/ui/button'
 import { MAX_MESSAGE_LENGTH, useEcho } from '@/composables/useEcho'
 import { useDashboard } from '@/composables/useDashboard'
 import { useIdentity } from '@/composables/useIdentity'
@@ -15,6 +16,7 @@ const router = useRouter()
 const bottom = ref<HTMLElement | null>(null)
 const insightPreview = ref<HTMLElement | null>(null)
 const input = ref<HTMLTextAreaElement | null>(null)
+const newChatDialog = ref<HTMLDialogElement | null>(null)
 const scenarioStarted = ref(false)
 const confirmationStep = ref<'idle' | 'saving' | 'dashboard'>('idle')
 const dashboardUpdateFailed = ref(false)
@@ -68,6 +70,18 @@ function onEnter(event: KeyboardEvent) {
     void send()
   }
 }
+function requestNewChat() {
+  if (status.busy) return
+  if (state.messages.length > 0 || state.draft.length > 0) {
+    newChatDialog.value?.showModal()
+    return
+  }
+  newChat()
+}
+function confirmNewChat() {
+  newChatDialog.value?.close()
+  newChat()
+}
 async function updateDashboard() {
   const identity = user.value?.id
   if (!identity || !confirmedEvent.value || status.busy) return
@@ -107,12 +121,54 @@ async function confirmAndUpdateDashboard() {
 </script>
 <template>
   <div class="chat-wrap">
-    <h1 v-if="!state.messages.length" class="page-title">👋 Hi Welcome to EchoTrail!</h1>
-    <template v-else>
-      <div class="chat-heading">
-        <h1 class="page-title">與艾可聊聊</h1>
-        <span class="demo-label">Gemini</span>
+    <div class="chat-topbar">
+      <div>
+        <h1 v-if="!state.messages.length" class="page-title">👋 Hi Welcome to EchoTrail!</h1>
+        <div v-else class="chat-heading">
+          <h1 class="page-title">與艾可聊聊</h1>
+          <span class="demo-label">Gemini</span>
+        </div>
       </div>
+      <Button
+        type="button"
+        variant="outline"
+        class="new-chat-action"
+        data-test="start-new-chat"
+        :disabled="status.busy"
+        @click="requestNewChat"
+      >
+        ＋ 與艾可聊天
+      </Button>
+    </div>
+    <dialog
+      ref="newChatDialog"
+      class="details-dialog reset-dialog"
+      aria-labelledby="new-chat-dialog-title"
+      aria-describedby="new-chat-dialog-description"
+      data-test="new-chat-dialog"
+    >
+      <h2 id="new-chat-dialog-title">開啟新聊天？</h2>
+      <p id="new-chat-dialog-description">目前的對話和未送出的文字會被清除。</p>
+      <div class="dialog-actions">
+        <Button
+          type="button"
+          variant="outline"
+          data-test="cancel-new-chat"
+          @click="newChatDialog?.close()"
+        >
+          取消
+        </Button>
+        <Button
+          type="button"
+          variant="destructive"
+          data-test="confirm-new-chat"
+          @click="confirmNewChat"
+        >
+          開啟新聊天
+        </Button>
+      </div>
+    </dialog>
+    <template v-if="state.messages.length">
       <div aria-live="polite" class="chat-messages">
         <div
           v-for="(message, index) in state.messages"
