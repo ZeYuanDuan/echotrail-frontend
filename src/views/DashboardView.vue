@@ -193,7 +193,7 @@ const northStarEvents = computed(() => {
         <p class="detail-lead">
           所有事件中的三種視角交集，形成目前最清楚的「{{ anchorSummary.primary }}」。
         </p>
-        <CareerAnchorVenn :anchor="anchorSummary" :show-items="false" />
+        <CareerAnchorVenn :anchor="anchorSummary" />
         <div class="anchor-foundations">
           <article>
             <h3>我擅長什麼？</h3>
